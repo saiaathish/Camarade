@@ -1,0 +1,84 @@
+version: 1
+product:
+  name: Camarade
+  category: Developer Tools
+  pitch: Agent-independent CI that proves whether coding context helps or hurts.
+  north_star: Given a repository and task, produce an evidence-backed context contract and reproducible baseline-versus-optimized proof.
+  universal_agents: [codex, claude-code, cursor, github-copilot, future]
+  mvp:
+    stage: 1
+    first_execution_adapter: codex
+context:
+  supported_sources:
+    - AGENTS.md
+    - CLAUDE.md
+    - .cursor/rules/**
+    - .github/copilot-instructions.md
+    - README.md
+    - docs/**
+    - relevant code and configuration
+  findings: [conflict, duplicate, stale-reference, unsupported-rule, irrelevant-context]
+  outputs:
+    - repository-audit
+    - conflict-report
+    - stale-reference-report
+    - evidence-backed-rules
+    - task-context-contract
+    - baseline-run
+    - optimized-run
+    - deterministic-comparison
+workflow:
+  - scan
+  - audit
+  - collect-evidence
+  - compile
+  - execute-baseline-and-camarade
+  - evaluate
+  - report
+architecture:
+  agent_independent: [scanner, parser, auditor, evidence-collector, compiler, experiment-engine, evaluator, cli]
+  adapters: [codex]
+experiment:
+  invariants: [same-commit, same-task, same-model, same-permissions, same-limits, same-validation-commands, separate-worktrees]
+  baseline: original-context
+  camarade: compiled-context
+  context_isolation:
+    original_context_archive: controller-owned-outside-worktrees
+    optimized_agent_can_access_original_context: false
+    optimized_worktree_receives_only_compiled_context: true
+    control_artifacts_excluded_from_diff_metrics: true
+  manifest:
+    required_per_run: true
+    required_fields:
+      - comparisonId
+      - runId
+      - repository
+      - startingCommit
+      - worktree
+      - task
+      - adapter
+      - adapterVersion
+      - model
+      - condition
+      - permissions
+      - limits
+      - environment
+      - contextSourceHashes
+      - validationCommands
+      - timestamps
+      - exitCodes
+      - changedFiles
+      - artifacts
+  artifact_isolation:
+    shared_comparison_id: true
+    unique_run_id_per_condition: true
+    separate_artifact_directory_per_condition: true
+    cross_run_overwrite_allowed: false
+evaluation:
+  weights: {correctness: 40, requirement_completion: 25, instruction_compliance: 20, change_focus: 10, efficiency: 5}
+  outcomes: [win, tie, regression, invalid-or-limited]
+  tie_tolerance:
+    status: pending-stage-6
+scope:
+  build: [repository-scanner, instruction-parser, finding-detector, evidence-collection, context-compiler, agent-adapter-interface, codex-adapter, worktree-experiment-runner, deterministic-evaluator, cli, dashboard, benchmark-artifacts]
+  non_goals: [accounts, billing, organizations, ide-extensions, full-multi-agent-implementation, permanent-personal-memory, rules-marketplace, enterprise-infrastructure]
