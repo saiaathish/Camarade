@@ -13,6 +13,10 @@ export type RepositoryFactKind = "file-exists" | "package-script" | "dependency"
 export interface RepositoryFact { id: string; kind: RepositoryFactKind; relativePath: string; startLine: number; endLine: number; subject: string; value: string; excerpt: string; excerptHash: string; }
 export interface RepositoryInventorySkip { relativePath: string; reason: string; }
 export interface RepositoryInventory { directories: string[]; files: RepositoryFile[]; facts: RepositoryFact[]; skipped: RepositoryInventorySkip[]; }
+export type ConventionKind = "server-actions-for-mutations" | "shared-middleware-for-api-security" | "test-framework" | "import-alias" | "existing-utility-reuse";
+export interface RepositoryConvention { id: string; kind: ConventionKind; statement: string; evidenceIds: string[]; affectedRelativePaths: string[]; explanation: string; }
+export interface ArchitectureDecision { id: string; statement: string; evidenceIds: string[]; affectedRelativePaths: string[]; explanation: string; }
+export interface ConventionMiningResult { conventions: RepositoryConvention[]; architectureDecisions: ArchitectureDecision[]; findings: IntelligenceFinding[]; }
 export interface RelevantFileCandidate { relativePath: string; score: number; reasons: string[]; supportingFactIds: string[]; }
 export interface InstructionParseSkip { segmentId: string; reason: string; }
 export interface InstructionParseResult { evidence: EvidenceSpan[]; rules: RepositoryRule[]; skipped: InstructionParseSkip[]; }

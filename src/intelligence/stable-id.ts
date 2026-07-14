@@ -11,7 +11,7 @@ import type {
   SourceSegment,
 } from "./model.js";
 
-export type StableIdPrefix = "source" | "evidence" | "segment" | "rule" | "finding" | "recommendation" | "file" | "fact" | "reference";
+export type StableIdPrefix = "source" | "evidence" | "segment" | "rule" | "finding" | "recommendation" | "file" | "fact" | "reference" | "convention" | "architecture-decision" | "history" | "exception";
 
 export function normalizeSemanticText(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim().replace(/\s+/g, " ").toLowerCase();
