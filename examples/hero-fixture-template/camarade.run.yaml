@@ -1,0 +1,4 @@
+validationCommands:
+  - npm test
+timeoutSeconds: 300
+

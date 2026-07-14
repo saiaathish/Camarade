@@ -1,28 +1,66 @@
 # Camarade
 
-Camarade is agent-independent CI that proves whether coding context helps or hurts.
+Camarade is an agent-independent experiment controller for comparing a repository's original coding context with a compiled, task-specific context. The current repository status is an implemented Stage 2 local vertical slice: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. It does not assign a score or comparative winner.
 
-## Problem
+Fixture adapter results are simulated and are not benchmark evidence.
 
-AI coding instructions scatter across repository files, tools, docs, and conventions. They conflict, duplicate, go stale, or add irrelevant context. Teams need evidence, not intuition, about which context improves a task.
+## Installation
 
-## Workflow
+Requirements: Node.js, npm, and Git.
 
-Scan sources, audit findings, collect code/test/config/Git evidence, compile minimal task context, run matched baseline and Camarade worktrees, evaluate deterministic artifacts, and report win, tie, regression, or limitation.
+From a Camarade checkout:
 
-## Product boundary
+```sh
+npm install
+npm run typecheck
+npm test
+```
 
-Camarade supports Codex, Claude Code, Cursor, GitHub Copilot, and future agents. Build Week MVP uses Codex as first execution adapter; core analysis, compilation, experiments, and evaluation stay agent-independent.
+## Available scripts
 
-## Stage 1
+| Script | Command | Behavior |
+|---|---|---|
+| Build | `npm run build` | Compiles TypeScript with `tsc -p tsconfig.json`. |
+| Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
+| Test | `npm test` | Runs the Vitest suite once. |
+| Test watch | `npm run test:watch` | Runs Vitest in watch mode. |
+| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; the implemented command is `evaluate`. |
+| Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |
 
-Stage 1 freezes product scope and experiment/evaluation contracts. No runtime product features or benchmark results exist yet.
+## Run the simulated hero comparison
 
-- [Product thesis](docs/stage-1/product-thesis.md)
-- [Product contract](docs/stage-1/product-contract.md)
-- [Experiment contract](docs/stage-1/experiment-contract.md)
-- [Evaluation contract](docs/stage-1/evaluation-contract.md)
-- [Hero demo](docs/stage-1/hero-demo.md)
-- [Scope lock](docs/stage-1/scope-lock.md)
-- [Decision log](docs/stage-1/decision-log.md)
-- [Machine-readable spec](config/camarade-spec.yaml)
+The generator refuses to overwrite an existing destination. This complete shell sequence creates a fresh fixture and an external controller root, then runs the exact fixture evaluation:
+
+```sh
+WORK_ROOT="$(mktemp -d)"
+npm run create:hero-fixture -- "$WORK_ROOT/hero-fixture"
+mkdir "$WORK_ROOT/controller"
+npm run camarade -- evaluate \
+  --repo "$WORK_ROOT/hero-fixture" \
+  --task "Add rate limiting to the public search API" \
+  --adapter fixture \
+  --controller-root "$WORK_ROOT/controller" \
+  --timeout 20
+```
+
+Fixture generation prints:
+
+```text
+Fixture path: <absolute fixture path>
+Starting SHA: <40-character Git SHA>
+```
+
+The evaluation prints the simulation label, comparison ID, evidence path, and summary path. The generated fixture contains conflicting and stale instructions, an existing rate-limit utility and middleware, protected auth and billing files, and an `npm test` validation command. See [Stage 2 vertical slice](docs/stage-2/vertical-slice.md) for exact CLI flags, condition behavior, artifact paths, evidence semantics, limitations, and failure handling.
+
+## Documentation
+
+- [Stage 2 vertical slice](docs/stage-2/vertical-slice.md)
+- [2026-07-14 build log](docs/build-log/2026-07-14.md)
+- [Stage 1 product thesis](docs/stage-1/product-thesis.md)
+- [Stage 1 product contract](docs/stage-1/product-contract.md)
+- [Stage 1 experiment contract](docs/stage-1/experiment-contract.md)
+- [Stage 1 evaluation contract](docs/stage-1/evaluation-contract.md)
+- [Stage 1 hero demo](docs/stage-1/hero-demo.md)
+- [Stage 1 scope lock](docs/stage-1/scope-lock.md)
+- [Stage 1 decision log](docs/stage-1/decision-log.md)
+- [Machine-readable specification](config/camarade-spec.yaml)

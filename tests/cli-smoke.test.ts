@@ -1,22 +1,24 @@
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { getScaffoldMessage } from "../src/cli.js";
+import { CLI_USAGE } from "../src/cli.js";
 
-const expectedMessage = "Camarade Stage 2 scaffold ready.";
-
-describe("Stage 2 CLI scaffold", () => {
-  it("returns the scaffold message without printing during import", () => {
-    expect(getScaffoldMessage()).toBe(expectedMessage);
+describe("Stage 2 CLI import and process smoke behavior", () => {
+  it("exports real evaluate usage without printing during import", () => {
+    expect(CLI_USAGE).toContain("camarade evaluate");
+    expect(CLI_USAGE).not.toContain("scaffold");
   });
 
-  it("executes the real TypeScript CLI successfully", () => {
+  it("rejects missing CLI input without a stack trace", () => {
     const tsxCli = resolve("node_modules/tsx/dist/cli.mjs");
     const cli = resolve("src/cli.ts");
-    const stdout = execFileSync(process.execPath, [tsxCli, cli], {
+    const result = spawnSync(process.execPath, [tsxCli, cli], {
       encoding: "utf8"
     });
 
-    expect(stdout.trim()).toBe(expectedMessage);
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Problem: Missing command: evaluate.");
+    expect(result.stderr).not.toContain("    at ");
   });
 });

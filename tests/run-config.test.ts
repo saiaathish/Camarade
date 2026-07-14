@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, afterEach } from "vitest";
@@ -17,8 +17,9 @@ describe("loadRunConfig", () => {
   it("uses defaults for omitted fields and empty YAML", async () => { expect((await loadRunConfig(await repo("future: yes\n"))).timeoutSeconds).toBe(1800); expect(await loadRunConfig(await repo(""))).toMatchObject({ validationCommands: [], timeoutSeconds: 1800 }); });
   it.each(["validationCommands: nope\n", "validationCommands:\n  - ' '\n", "validationCommands:\n  - npm test\n  - ' npm test '\n", "timeoutSeconds: 1.5\n", "timeoutSeconds: 0\n", "- item\n", "validationCommands: [npm test\n"]) ("rejects malformed config: %s", async (config) => rejectsConfig(await repo(config)));
   it("rejects missing and file repository paths", async () => { await rejectsConfig(join(tmpdir(), "camarade-does-not-exist")); const path = await repo(); const file = join(path, "file"); await writeFile(file, "x"); await rejectsConfig(file); });
+  it("rejects a symlinked run configuration", async () => { const target = await repo("timeoutSeconds: 10\n"); const path = await repo(); await symlink(join(target, "camarade.run.yaml"), join(path, "camarade.run.yaml")); await rejectsConfig(path); });
 });
 
 describe("isUnavailableEvidence", () => {
-  it("accepts valid evidence and rejects malformed evidence", () => { expect(isUnavailableEvidence({ unavailableReason: "not reported" })).toBe(true); expect(isUnavailableEvidence({ unavailableReason: "" })).toBe(false); expect(isUnavailableEvidence(null)).toBe(false); expect(isUnavailableEvidence({ unavailableReason: 3 })).toBe(false); });
+  it("accepts valid evidence and rejects malformed evidence", () => { expect(isUnavailableEvidence({ unavailableReason: "not reported" })).toBe(true); expect(isUnavailableEvidence({ unavailableReason: "" })).toBe(false); expect(isUnavailableEvidence({ unavailableReason: "   " })).toBe(false); expect(isUnavailableEvidence(null)).toBe(false); expect(isUnavailableEvidence({ unavailableReason: 3 })).toBe(false); });
 });

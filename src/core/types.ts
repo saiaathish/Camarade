@@ -7,7 +7,7 @@ export type EvidenceValue<T> = T | UnavailableEvidence;
 export function isUnavailableEvidence(value: unknown): value is UnavailableEvidence {
   return typeof value === "object" && value !== null &&
     typeof (value as { unavailableReason?: unknown }).unavailableReason === "string" &&
-    (value as { unavailableReason: string }).unavailableReason.length > 0;
+    (value as { unavailableReason: string }).unavailableReason.trim().length > 0;
 }
 
 export interface ComparisonRequest { repositoryPath: string; task: string; adapter: string; validationCommands: string[]; }

@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { RunConfigError } from "../core/errors.js";
@@ -13,7 +13,7 @@ export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunCo
   if (!repositoryStat.isDirectory()) throw new RunConfigError(`Repository path is not a directory: ${repositoryPath}`);
   const configPath = join(repositoryPath, "camarade.run.yaml");
   let text: string;
-  try { const configStat = await stat(configPath); if (!configStat.isFile()) throw new RunConfigError("Config path is not a regular file: camarade.run.yaml"); text = await readFile(configPath, "utf8"); }
+  try { const configStat = await lstat(configPath); if (!configStat.isFile()) throw new RunConfigError("Config path is not a regular file: camarade.run.yaml"); text = await readFile(configPath, "utf8"); }
   catch (cause) { if (cause instanceof RunConfigError) throw cause; if ((cause as NodeJS.ErrnoException).code === "ENOENT") return { configPath: null, validationCommands: [], timeoutSeconds: DEFAULT_TIMEOUT }; throw new RunConfigError("Config cannot be read: camarade.run.yaml", cause); }
   let parsed: unknown;
   try { parsed = parse(text); } catch (cause) { throw new RunConfigError("Invalid YAML syntax in camarade.run.yaml.", cause); }
