@@ -1,6 +1,6 @@
 # Camarade
 
-Camarade is an agent-independent context compiler and experiment controller. Stage 4 now turns Stage 3 repository intelligence into a minimal, evidence-backed context contract for one coding task. The independent Stage 2 local comparison slice remains available: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. Neither flow assigns a score or comparative winner.
+Camarade is a local MCP server and task-specific context compiler. Its primary Stage 4 interface turns Stage 3 repository intelligence into a minimal, evidence-backed context contract for one coding task. The independent Stage 2 local comparison slice remains available: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. Neither flow assigns a score or comparative winner.
 
 Fixture adapter results are simulated and are not benchmark evidence.
 
@@ -15,6 +15,18 @@ npm install
 npm run typecheck
 npm test
 ```
+
+The MCP interface is the primary Stage 4 integration for compiling task context. The CLI remains the developer/testing interface for compile, inspect, and evaluate workflows. Stage 2 comparison remains an independent local experiment-controller slice.
+
+## MCP quick start
+
+```sh
+npm install
+npm run build
+node dist/src/mcp/start-server.js
+```
+
+MCP clients normally launch the local stdio server. The tool is `camarade.compile_task_context`. For a built-server protocol check, run `npm run verify:mcp`. See the [MCP server guide](docs/mcp-server.md) for the contract and client configuration.
 
 ## Available scripts
 
