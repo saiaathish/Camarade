@@ -6,9 +6,10 @@ import os from "node:os";
 import path from "node:path";
 
 const root = path.resolve("tests/fixtures/repository-intelligence");
-const cli = path.resolve("dist/src/cli.js");
+const cli = path.resolve("src/cli.ts");
 const task = "update the profile API safely";
-const run = (args: string[]) => execFileSync("node", [cli, ...args], { encoding: "utf8", cwd: path.resolve(".") });
+const cliArguments = (args: string[]) => ["--import", "tsx", cli, ...args];
+const run = (args: string[]) => execFileSync(process.execPath, cliArguments(args), { encoding: "utf8", cwd: path.resolve(".") });
 const fixtureCopy = async () => { const dir = await mkdtemp(path.join(os.tmpdir(), "camarade-ri-")); await cp(root, dir, { recursive: true }); return dir; };
 const json = (text: string) => JSON.parse(text) as Record<string, any>;
 
@@ -46,7 +47,7 @@ describe("repository intelligence integrated CLI", () => {
   it("REQ-E2E-05 returns an evaluation exit code matching the generated artifact", async () => {
     const dir = await fixtureCopy();
     run(["inspect", "--repo", dir, "--task", task]);
-    const result = spawnSync("node", [cli, "evaluate", "--repo", dir, "--json"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, cliArguments(["evaluate", "--repo", dir, "--json"]), { encoding: "utf8" });
     const evaluation = json(result.stdout);
     expect([0, 1, 2]).toContain(evaluation.exitCode);
     expect(["pass", "warn", "fail"]).toContain(evaluation.status);

@@ -6,7 +6,11 @@ import { DEFAULT_INTELLIGENCE_ARTIFACT_PATH, writeIntelligenceArtifact } from ".
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(p => rm(p, { recursive: true, force: true }))); });
-const artifact = { schemaVersion: "1.0.0", id: "x" } as never;
+const artifact = {
+  schemaVersion: "1.0.0",
+  id: "x",
+  graph: { id: "graph_fixture", nodes: [], edges: [], danglingReferences: [] }
+} as never;
 
 describe("intelligence artifact writer", () => {
   it("REQ-WRITE-01 writes to the default repository-relative artifact path", async () => { const root = await mkdtemp(join(tmpdir(), "camarade-w-")); roots.push(root); const result = await writeIntelligenceArtifact({ repositoryPath: root, artifact }); expect(result.relativePath).toBe(DEFAULT_INTELLIGENCE_ARTIFACT_PATH); expect(result.absolutePath.endsWith(`/${DEFAULT_INTELLIGENCE_ARTIFACT_PATH}`)).toBe(true); });

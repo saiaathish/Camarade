@@ -1,6 +1,6 @@
 # Camarade
 
-Camarade is an agent-independent experiment controller for comparing a repository's original coding context with a compiled, task-specific context. The current repository status is an implemented Stage 2 local vertical slice: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. It does not assign a score or comparative winner.
+Camarade is an agent-independent context compiler and experiment controller. Stage 4 now turns Stage 3 repository intelligence into a minimal, evidence-backed context contract for one coding task. The independent Stage 2 local comparison slice remains available: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. Neither flow assigns a score or comparative winner.
 
 Fixture adapter results are simulated and are not benchmark evidence.
 
@@ -24,7 +24,7 @@ npm test
 | Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
 | Test | `npm test` | Runs the Vitest suite once. |
 | Test watch | `npm run test:watch` | Runs Vitest in watch mode. |
-| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; the implemented command is `evaluate`. |
+| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, and `evaluate`. |
 | Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |
 
 ## Product website
@@ -38,6 +38,20 @@ npm run dev
 ```
 
 Open `http://localhost:5173/`. For the full frontend verification pass, keep the dev server running and run `npm run qa:visual` from `frontend/`; it checks responsive overflow, keyboard focus, reduced motion, link integrity, axe-core accessibility, replay behavior, and the no-SVG constraint.
+
+## Compile task-specific context
+
+The Stage 4 command compiles context only. It does not run Codex, execute validation commands, compare implementations, or make a benchmark claim.
+
+```sh
+npm run camarade -- compile \
+  --repo ./examples/intelligence-fixture \
+  --task "Add rate limiting to the public search API"
+```
+
+When `--controller-root` is omitted, Camarade creates and retains a fresh external temporary controller root and prints its path. The command writes nine auditable files under `.camarade/compilations/<compilation-id>/`, including canonical JSON, Markdown rendered solely from that JSON, every candidate decision, unresolved conflicts, provenance hashes, and a summary. The analyzed repository remains unchanged.
+
+The default `fixture` reasoner is deterministic and offline. It is a testable provider boundary, not an agent execution or model-quality claim. See the [task context compiler guide](docs/context-compiler.md) and [Stage 4 technical reference](docs/stage-4/task-context-compiler.md) for configuration, strict intelligence loading, budgets, artifacts, failure codes, and limitations.
 
 ## Run the simulated hero comparison
 
@@ -66,6 +80,8 @@ The evaluation prints the simulation label, comparison ID, evidence path, and su
 
 ## Documentation
 
+- [Task context compiler guide](docs/context-compiler.md)
+- [Stage 4 technical reference](docs/stage-4/task-context-compiler.md)
 - [Stage 2 vertical slice](docs/stage-2/vertical-slice.md)
 - [2026-07-14 build log](docs/build-log/2026-07-14.md)
 - [Stage 1 product thesis](docs/stage-1/product-thesis.md)

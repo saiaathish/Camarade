@@ -10,11 +10,73 @@ export interface EvidenceGraphNode { id: string; kind: EvidenceGraphNodeKind; la
 export interface EvidenceGraphEdge { id: string; kind: EvidenceGraphEdgeKind; fromId: string; toId: string; explanation: string; }
 export interface EvidenceGraphDanglingReference { ownerId: string; relation: string; missingId: string; }
 export interface EvidenceGraph { id: string; nodes: EvidenceGraphNode[]; edges: EvidenceGraphEdge[]; danglingReferences: EvidenceGraphDanglingReference[]; }
+export interface EvidenceGraphStructureValidationResult { valid: boolean; errors: string[]; }
 export interface EvidenceGraphInput { inventory: RepositoryInventory; sources: readonly EvidenceSource[]; evidence: readonly EvidenceSpan[]; rules: readonly RepositoryRule[]; references: readonly ResolvedRuleReference[]; findings: readonly IntelligenceFinding[]; conventions: readonly RepositoryConvention[]; architectureDecisions: readonly ArchitectureDecision[]; history: GitHistoryAnalysisResult; exceptions: readonly DetectedException[]; confidenceAssessments: readonly ConfidenceAssessment[]; recommendations: readonly IntelligenceRecommendation[]; }
 
 const cmp = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0;
 const unique = (xs: readonly string[]): string[] => [...new Set(xs)].sort(cmp);
 const label = (kind: EvidenceGraphNodeKind, value: string): string => { if (!value.trim()) throw new Error(`Graph node label must be non-empty: ${kind}.`); return value; };
+const nodeKinds = new Set<string>(["source", "evidence", "rule", "reference", "file", "fact", "finding", "convention", "architecture", "history", "exception", "confidence", "recommendation"] satisfies EvidenceGraphNodeKind[]);
+const edgeKinds = new Set<string>(["contains", "supports", "affects", "derived-from", "defines", "assesses", "produces"] satisfies EvidenceGraphEdgeKind[]);
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
+export function validateEvidenceGraphStructure(value: unknown): EvidenceGraphStructureValidationResult {
+  const errors: string[] = [];
+  if (!isRecord(value)) return { valid: false, errors: ["root: expected an object"] };
+  if (!nonEmpty(value.id)) errors.push("id: required non-empty string");
+  const collections = ["nodes", "edges", "danglingReferences"] as const;
+  for (const name of collections) if (!Array.isArray(value[name])) errors.push(`${name}: expected an array`);
+
+  const rawNodes = Array.isArray(value.nodes) ? value.nodes : [];
+  const nodeIds = new Set<string>();
+  for (const [index, raw] of rawNodes.entries()) {
+    const at = `nodes[${index}]`;
+    if (!isRecord(raw)) { errors.push(`${at}: expected an object`); continue; }
+    if (!nonEmpty(raw.id)) errors.push(`${at}.id: required non-empty string`);
+    else if (nodeIds.has(raw.id)) errors.push(`${at}.id: duplicate node ID '${raw.id}'`);
+    else nodeIds.add(raw.id);
+    if (!nonEmpty(raw.kind) || !nodeKinds.has(raw.kind)) errors.push(`${at}.kind: unsupported node kind`);
+    if (!nonEmpty(raw.label)) errors.push(`${at}.label: required non-empty string`);
+  }
+
+  const rawEdges = Array.isArray(value.edges) ? value.edges : [];
+  const edgeIds = new Set<string>();
+  for (const [index, raw] of rawEdges.entries()) {
+    const at = `edges[${index}]`;
+    if (!isRecord(raw)) { errors.push(`${at}: expected an object`); continue; }
+    if (!nonEmpty(raw.id)) errors.push(`${at}.id: required non-empty string`);
+    else if (edgeIds.has(raw.id)) errors.push(`${at}.id: duplicate edge ID '${raw.id}'`);
+    else if (nodeIds.has(raw.id)) errors.push(`${at}.id: collides with node ID '${raw.id}'`);
+    else edgeIds.add(raw.id);
+    if (!nonEmpty(raw.kind) || !edgeKinds.has(raw.kind)) errors.push(`${at}.kind: unsupported edge kind`);
+    if (!nonEmpty(raw.fromId)) errors.push(`${at}.fromId: required non-empty string`);
+    else if (!nodeIds.has(raw.fromId)) errors.push(`${at}.fromId: missing node reference '${raw.fromId}'`);
+    if (!nonEmpty(raw.toId)) errors.push(`${at}.toId: required non-empty string`);
+    else if (!nodeIds.has(raw.toId)) errors.push(`${at}.toId: missing node reference '${raw.toId}'`);
+    if (!nonEmpty(raw.explanation)) errors.push(`${at}.explanation: required non-empty string`);
+  }
+
+  const rawDangling = Array.isArray(value.danglingReferences) ? value.danglingReferences : [];
+  const danglingKeys = new Set<string>();
+  for (const [index, raw] of rawDangling.entries()) {
+    const at = `danglingReferences[${index}]`;
+    if (!isRecord(raw)) { errors.push(`${at}: expected an object`); continue; }
+    if (!nonEmpty(raw.ownerId)) errors.push(`${at}.ownerId: required non-empty string`);
+    else if (!nodeIds.has(raw.ownerId)) errors.push(`${at}.ownerId: missing node reference '${raw.ownerId}'`);
+    if (!nonEmpty(raw.relation)) errors.push(`${at}.relation: required non-empty string`);
+    if (!nonEmpty(raw.missingId)) errors.push(`${at}.missingId: required non-empty string`);
+    else if (nodeIds.has(raw.missingId)) errors.push(`${at}.missingId: references an existing node '${raw.missingId}'`);
+    if (nonEmpty(raw.ownerId) && nonEmpty(raw.relation) && nonEmpty(raw.missingId)) {
+      const key = `${raw.ownerId}\0${raw.relation}\0${raw.missingId}`;
+      if (danglingKeys.has(key)) errors.push(`${at}: duplicate dangling reference`);
+      else danglingKeys.add(key);
+    }
+  }
+
+  const result = [...new Set(errors)].sort(cmp);
+  return { valid: result.length === 0, errors: result };
+}
 
 export function buildEvidenceGraph(input: EvidenceGraphInput): EvidenceGraph {
   const nodes = new Map<string, EvidenceGraphNode>();
@@ -55,5 +117,8 @@ export function buildEvidenceGraph(input: EvidenceGraphInput): EvidenceGraph {
   const sortedNodes = [...nodes.values()].sort((a, b) => cmp(a.kind, b.kind) || cmp(a.id, b.id));
   const sortedEdges = [...edges.values()].sort((a, b) => cmp(a.kind, b.kind) || cmp(a.fromId, b.fromId) || cmp(a.toId, b.toId) || cmp(a.id, b.id));
   const sortedDangling = [...new Map(dangling.map(x => [`${x.ownerId}\0${x.relation}\0${x.missingId}`, x])).values()].sort((a, b) => cmp(a.ownerId, b.ownerId) || cmp(a.relation, b.relation) || cmp(a.missingId, b.missingId));
-  return { id: createStableId("graph", [sortedNodes.map(x => x.id), sortedEdges.map(x => x.id), sortedDangling.map(x => [x.ownerId, x.relation, x.missingId])]), nodes: sortedNodes, edges: sortedEdges, danglingReferences: sortedDangling };
+  const graph = { id: createStableId("graph", [sortedNodes.map(x => x.id), sortedEdges.map(x => x.id), sortedDangling.map(x => [x.ownerId, x.relation, x.missingId])]), nodes: sortedNodes, edges: sortedEdges, danglingReferences: sortedDangling };
+  const validation = validateEvidenceGraphStructure(graph);
+  if (!validation.valid) throw new Error(`Built evidence graph is structurally invalid: ${validation.errors.join("; ")}.`);
+  return graph;
 }
