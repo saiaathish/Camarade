@@ -12,6 +12,7 @@ const DEFAULT_TIMEOUT = 1800;
 
 export interface LoadedRunConfigWithContext extends LoadedRunConfig {
   contextCompilerBudget?: ContextBudgetConfig;
+  experiment?: ExperimentRunConfig;
 }
 
 function positiveInteger(value: unknown, field: string): number {
@@ -54,6 +55,8 @@ function contextBudget(config: Record<string, unknown>): ContextBudgetConfig | u
   };
 }
 
+import type { ExperimentRunConfig, ExperimentInstructionMode, ExperimentExecutionOrder } from "../experiment/experiment-types.js";
+
 export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunConfigWithContext> {
   if (repositoryPath.trim() === "") throw new RunConfigError("Repository path is empty.");
   let repositoryStat;
@@ -75,10 +78,31 @@ export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunCo
   const timeout = config.timeoutSeconds ?? DEFAULT_TIMEOUT;
   if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout <= 0) throw new RunConfigError("timeoutSeconds must be a positive integer in camarade.run.yaml.");
   const compilerBudget = contextBudget(config);
-  return {
+  const base = {
     configPath,
     validationCommands: commands,
     timeoutSeconds: timeout,
     ...(compilerBudget === undefined ? {} : { contextCompilerBudget: compilerBudget })
   };
+  const rawExperiment = config.experiment;
+  if (rawExperiment === undefined) return base;
+  if (!isMapping(rawExperiment) || hasUnknown(rawExperiment, ["instruction_mode", "execution_order", "codex"])) throw new RunConfigError("experiment must be a valid mapping in camarade.run.yaml.");
+  const mode = rawExperiment.instruction_mode;
+  const order = rawExperiment.execution_order;
+  if (mode !== "augmentation" && mode !== "replacement") throw new RunConfigError("experiment.instruction_mode is invalid in camarade.run.yaml.");
+  if (order !== "baseline-first" && order !== "camarade-first") throw new RunConfigError("experiment.execution_order is invalid in camarade.run.yaml.");
+  const rawCodex = rawExperiment.codex;
+  if (!isMapping(rawCodex) || hasUnknown(rawCodex, ["executable", "timeout_seconds", "arguments", "environment_allowlist"])) throw new RunConfigError("experiment.codex must be a valid mapping in camarade.run.yaml.");
+  if (typeof rawCodex.executable !== "string" || rawCodex.executable.trim() === "" || rawCodex.executable.includes("\0")) throw new RunConfigError("experiment.codex.executable is invalid in camarade.run.yaml.");
+  const codexTimeout = rawCodex.timeout_seconds;
+  if (typeof codexTimeout !== "number" || !Number.isSafeInteger(codexTimeout) || codexTimeout <= 0) throw new RunConfigError("experiment.codex.timeout_seconds must be a positive safe integer in camarade.run.yaml.");
+  const args = rawCodex.arguments ?? [];
+  if (!Array.isArray(args) || args.some((v) => typeof v !== "string" || v.length === 0 || v.includes("\0"))) throw new RunConfigError("experiment.codex.arguments is invalid in camarade.run.yaml.");
+  const env = rawCodex.environment_allowlist ?? [];
+  if (!Array.isArray(env) || env.some((v) => typeof v !== "string" || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(v)) || new Set(env).size !== env.length) throw new RunConfigError("experiment.codex.environment_allowlist is invalid in camarade.run.yaml.");
+  const experiment: ExperimentRunConfig = { instructionMode: mode as ExperimentInstructionMode, executionOrder: order as ExperimentExecutionOrder, codex: { executable: rawCodex.executable.trim(), timeoutSeconds: codexTimeout, arguments: [...args] as string[], environmentAllowlist: [...env].sort() as string[] } };
+  return { ...base, experiment };
 }
+
+function isMapping(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function hasUnknown(value: Record<string, unknown>, allowed: string[]): boolean { return Object.keys(value).some((key) => !allowed.includes(key)); }

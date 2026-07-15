@@ -1,0 +1,3 @@
+export type ExperimentContractStage = "request-validation" | "load-configuration" | "build-specification";
+export type ExperimentContractErrorCode = "EXPERIMENT_REQUEST_INVALID" | "EXPERIMENT_CONFIG_INVALID" | "EXPERIMENT_SPECIFICATION_INVALID";
+export class ExperimentContractError extends Error { readonly code:ExperimentContractErrorCode; readonly stage:ExperimentContractStage; readonly details:Record<string,unknown>; constructor(message:string, code:ExperimentContractErrorCode, stage:ExperimentContractStage, details:Record<string,unknown>={}, cause?:unknown) { super(message,{cause}); this.name="ExperimentContractError"; this.code=code; this.stage=stage; this.details=details; } }
