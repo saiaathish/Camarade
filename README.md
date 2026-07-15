@@ -27,6 +27,18 @@ npm test
 | CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; the implemented command is `evaluate`. |
 | Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |
 
+## Product website
+
+The product showcase lives in [`frontend/`](frontend/). It is an independent Vite/React app so the marketing surface does not alter the root controller runtime.
+
+```sh
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173/`. For the full frontend verification pass, keep the dev server running and run `npm run qa:visual` from `frontend/`; it checks responsive overflow, keyboard focus, reduced motion, link integrity, axe-core accessibility, replay behavior, and the no-SVG constraint.
+
 ## Run the simulated hero comparison
 
 The generator refuses to overwrite an existing destination. This complete shell sequence creates a fresh fixture and an external controller root, then runs the exact fixture evaluation:
