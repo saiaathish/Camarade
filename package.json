@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "camarade": "tsx src/cli.ts",
     "mcp": "tsx src/mcp/start-server.ts",
+    "verify:mcp": "tsx scripts/verify-stage-4-mcp.ts",
     "create:hero-fixture": "tsx scripts/create-hero-fixture.ts"
   },
   "devDependencies": {
