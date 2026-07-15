@@ -1,0 +1,23 @@
+import type { ArchitectureDecision, ConfidenceAssessment, ConfidenceFactor, EvidenceSource, EvidenceSpan, IntelligenceFinding, RepositoryRule } from "./model.js";
+import type { ResolvedRuleReference } from "./resolve-references.js";
+import type { GitHistoryAnalysisResult } from "./analyze-git-history.js";
+import type { DetectedException } from "./detect-exceptions.js";
+import { createStableId, normalizeSemanticText } from "./stable-id.js";
+
+export interface ConfidenceScoringInput { findings: readonly IntelligenceFinding[]; rules: readonly RepositoryRule[]; evidence: readonly EvidenceSpan[]; sources: readonly EvidenceSource[]; references: readonly ResolvedRuleReference[]; architectureDecisions: readonly ArchitectureDecision[]; history: GitHistoryAnalysisResult; exceptions: readonly DetectedException[]; }
+const base: Record<string, number> = { "stale-reference": 55, duplicate: 70, "near-duplicate": 50, contradiction: 75, "possible-conflict": 45, "scope-resolved": 80 };
+const clamp = (n: number) => Math.max(0, Math.min(100, n));
+const uniq = (a: string[]) => [...new Set(a)].sort();
+export function scoreFindingConfidence(input: ConfidenceScoringInput): ConfidenceAssessment[] {
+  return input.findings.map(f => {
+    const factors: ConfidenceFactor[] = []; const evidence = new Map(input.evidence.map(e => [e.id, e])); const resolved = f.evidenceIds.filter(id => evidence.has(id));
+    const add = (code: string, delta: number, explanation: string, supportingIds: string[] = []) => factors.push({ code, delta, explanation: `${explanation}.`, supportingIds: uniq(supportingIds) });
+    if (!f.evidenceIds.length) add("evidence-none", -25, "No evidence is attached"); else if (resolved.length !== f.evidenceIds.length) add("evidence-missing", -20, "Some evidence IDs do not resolve"); else add("evidence-complete", 10, "All evidence IDs resolve");
+    if (resolved.length) { const count = new Set(resolved.map(id => evidence.get(id)!.sourceId)).size; add(count > 1 ? "source-diverse" : "source-single", count > 1 ? 10 : 5, count > 1 ? "Evidence comes from multiple sources" : "Evidence comes from one source"); }
+    const arch = input.architectureDecisions.filter(a => f.affectedRuleIds.some(id => (a as ArchitectureDecision & { ruleId?: string }).ruleId === id)); if (arch.length) add("architecture-support", 10, "An architecture decision supports the affected rule", arch.map(a => a.id));
+    const exc = input.exceptions.filter(e => e.affectedRuleIds.some(id => f.affectedRuleIds.includes(id))); if (exc.length) add("exception-overlap", -15, "An exception overlaps an affected rule", exc.map(e => e.id));
+    if (f.kind === "stale-reference") { const refs = input.references.filter(r => f.affectedRuleIds.includes(r.ruleId)); const invalid = refs.filter(r => r.status === "invalid"); const missing = refs.filter(r => r.status === "missing"); if (invalid.length) add("invalid-reference", 15, "A matching reference is invalid", invalid.map(r => r.id)); else if (missing.length) add("missing-reference", 5, "A matching reference is missing", missing.map(r => r.id)); const paths = refs.map(r => normalizeSemanticText(r.normalizedPath).replace(/["`]/g, "").replace(/\.$/, "").replace(/^\.\//, "").replace(/\\/g, "/")); const events = input.history.events.filter(e => paths.includes(e.affectedPaths[0]) || e.affectedPaths.some(p => paths.includes(p))); if (events.length) add("history-support", 10, "Git history matches the reference path", events.map(e => e.id)); }
+    const certainty: Record<string, [string, number, string]> = { duplicate: ["exact-duplicate", 5, "The finding is an exact duplicate"], contradiction: ["direct-contradiction", 5, "The finding is a direct contradiction"], "scope-resolved": ["explicit-scope-resolution", 5, "The finding has an explicit scope resolution"] }; if (certainty[f.kind]) { const [code, delta, text] = certainty[f.kind]; add(code, delta, text); }
+    factors.sort((a,b) => a.code.localeCompare(b.code)); const score = clamp((base[f.kind] ?? 0) + factors.reduce((n,x) => n+x.delta, 0)); const level: "low" | "medium" | "high" = score >= 75 ? "high" : score >= 50 ? "medium" : "low"; const supportingIds = factors.flatMap(x => x.supportingIds).sort(); const explanation = `Confidence ${level} (${score}/100): ${factors.length ? factors.map(x => x.explanation).join(" ") : "Base score only."}`; const id = createStableId("confidence", ["finding", f.id, score, level, factors.map(x=>x.code).sort(), supportingIds]); return { id, targetKind: "finding" as const, targetId: f.id, score, level, factors, explanation };
+  }).sort((a,b) => a.targetId.localeCompare(b.targetId) || a.id.localeCompare(b.id));
+}

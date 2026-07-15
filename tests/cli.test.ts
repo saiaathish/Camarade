@@ -165,6 +165,15 @@ describe("runComparison", () => {
 });
 
 describe("CLI argument parsing", () => {
+  it("parses inspect with an optional task and resolves paths", () => {
+    const cwd = resolve("/tmp/camarade-cli-parser");
+    expect(parseCliArgs(["inspect", "--repo", "repo", "--task", "  find auth  "], cwd)).toEqual({
+      command: "inspect",
+      repositoryPath: join(cwd, "repo"),
+      task: "find auth"
+    });
+  });
+
   it("resolves paths and preserves repeated literal command arguments", () => {
     const cwd = resolve("/tmp/camarade-cli-parser");
     expect(parseCliArgs([
@@ -192,7 +201,7 @@ describe("CLI argument parsing", () => {
 
   it.each([
     { argv: [], problem: "Missing command" },
-    { argv: ["inspect"], problem: "Unknown command" },
+    { argv: ["unknown"], problem: "Unknown command" },
     { argv: ["evaluate", "--repo", "one", "--repo", "two"], problem: "Duplicate flag" },
     { argv: ["evaluate", "--unknown", "value"], problem: "Unknown flag" },
     {
@@ -217,6 +226,18 @@ describe("CLI argument parsing", () => {
 });
 
 describe("runCli", () => {
+  it("runs inspect and prints deterministic repository inventory", async () => {
+    const paths = await fixture(false);
+    const capture = captureIo();
+    const exitCode = await runCli(["inspect", "--repo", paths.repositoryPath, "--task", "rate limiting"], capture.io);
+    expect(exitCode).toBe(0);
+    expect(capture.stderr).toEqual([]);
+    expect(capture.stdout.join("")).toMatch(/^Intelligence artifact: \.camarade\/intelligence\.json\n/m);
+    expect(capture.stdout.join("")).toMatch(/^Findings: \d+ \(\d+ open, \d+ resolved\)$/m);
+    expect(capture.stdout.join("")).toMatch(/^Recommendations: \d+$/m);
+    expect(capture.stdout.join("")).toMatch(/^High-confidence findings: \d+$/m);
+  });
+
   it("runs a fixture comparison from a task file and prints concise artifact locations", async () => {
     const paths = await fixture(false);
     const taskFile = join(paths.root, "task.md");

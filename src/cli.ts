@@ -1,7 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import path, { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SIMULATED_EXECUTION_LABEL } from "./adapters/fixture-adapter.js";
+import { compileRepositoryIntelligence } from "./intelligence/compile-repository-intelligence.js";
+import { evaluateIntelligenceArtifact, evaluateIntelligenceArtifactFile } from "./intelligence/evaluate-intelligence-artifact.js";
+import { DEFAULT_INTELLIGENCE_ARTIFACT_PATH, writeIntelligenceArtifact } from "./intelligence/write-intelligence-artifact.js";
 import {
   runComparison,
   RunComparisonError,
@@ -21,7 +24,9 @@ const SINGLE_VALUE_FLAGS = new Set([
 ]);
 
 export const CLI_USAGE = [
-  "Usage:",
+"Usage:",
+  "  camarade inspect --task TEXT [--repo PATH] [--repository-id ID] [--output REPO-REL] [--stdout] [--no-git]",
+  "  camarade evaluate [--repo PATH] [--artifact REPO-REL] [--json]",
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) --adapter fixture --controller-root PATH [--timeout SECONDS]",
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) --adapter command --controller-root PATH --command-executable FILE [--command-arg ARG ...] [--timeout SECONDS]",
   "",
@@ -38,6 +43,25 @@ export interface ParsedCliOptions {
   timeoutSeconds?: number;
   command?: { executable: string; args: string[] };
 }
+
+export interface ParsedInspectOptions {
+  command: "inspect";
+  repositoryPath: string;
+  task: string;
+  repositoryId?: string;
+  output?: string;
+  stdout?: boolean;
+  noGit?: boolean;
+}
+
+export interface ParsedArtifactEvaluateOptions {
+  command: "evaluate-artifact";
+  repositoryPath: string;
+  artifact: string;
+  json: boolean;
+}
+
+export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions;
 
 export interface CliIo {
   stdout: { write(content: string): unknown };
@@ -85,10 +109,26 @@ function parseAdapter(value: string): "fixture" | "command" {
   );
 }
 
-export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): ParsedCliOptions {
+export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): ParsedCommandOptions {
   if (argv.length === 0) throw new CliUsageError("Missing command: evaluate.");
+  if (argv[0] === "inspect") return parseInspectArgs(argv, cwd);
+  if (argv.length === 1 && argv[0] === "evaluate") throw new CliUsageError("Missing evaluation artifact options.");
   if (argv[0] !== "evaluate") {
     throw new CliUsageError(`Unknown command ${JSON.stringify(argv[0])}. Expected: evaluate.`);
+  }
+
+  if (!argv.some(flag => ["--task", "--task-file", "--adapter", "--controller-root", "--command-executable", "--command-arg", "--timeout"].includes(flag))) {
+    const values = new Map<string, string>(); let json = false;
+    for (let index = 1; index < argv.length; index += 1) {
+      const flag = argv[index];
+      if (flag === "--json") { if (json) throw new CliUsageError("Duplicate flag: --json."); json = true; continue; }
+      if (flag !== "--repo" && flag !== "--artifact") throw new CliUsageError(`Unknown flag: ${flag}.`);
+      if (values.has(flag)) throw new CliUsageError(`Duplicate flag: ${flag}.`);
+      values.set(flag, requiredValue(argv, index, flag)); index += 1;
+    }
+    const artifact = values.get("--artifact") ?? DEFAULT_INTELLIGENCE_ARTIFACT_PATH;
+    if (path.isAbsolute(artifact) || artifact.split(/[\\/]/).includes("..")) throw new CliUsageError("Artifact path must be repository-relative.");
+    return { command: "evaluate-artifact", repositoryPath: resolve(cwd, values.get("--repo") ?? "."), artifact, json };
   }
 
   const values = new Map<string, string>();
@@ -150,6 +190,37 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
   };
 }
 
+function parseInspectArgs(argv: readonly string[], cwd: string): ParsedInspectOptions {
+  const values = new Map<string, string>();
+  let stdout = false;
+  let noGit = false;
+  for (let index = 1; index < argv.length; index += 1) {
+    const flag = argv[index];
+    if (flag === "--stdout") { if (stdout) throw new CliUsageError("Duplicate flag: --stdout."); stdout = true; continue; }
+    if (flag === "--no-git") { if (noGit) throw new CliUsageError("Duplicate flag: --no-git."); noGit = true; continue; }
+    if (flag !== "--repo" && flag !== "--task" && flag !== "--repository-id" && flag !== "--output") {
+      throw new CliUsageError(`Unknown flag: ${flag}.`);
+    }
+    if (values.has(flag)) throw new CliUsageError(`Duplicate flag: ${flag}.`);
+    values.set(flag, requiredValue(argv, index, flag));
+    index += 1;
+  }
+  const task = requiredFlag(values, "--task");
+  if (task.trim() === "") throw new CliUsageError("--task must be non-empty.");
+  const output = values.get("--output");
+  if (output !== undefined && (path.isAbsolute(output) || output.split(/[\\/]/).includes(".."))) throw new CliUsageError("Artifact destination must be a safe repository-relative path.");
+  if (stdout && output !== undefined) throw new CliUsageError("--stdout cannot be combined with --output.");
+  return {
+    command: "inspect",
+    repositoryPath: resolve(cwd, values.get("--repo") ?? "."),
+    task: task.trim(),
+    ...(values.get("--repository-id") === undefined ? {} : { repositoryId: values.get("--repository-id") }),
+    ...(output === undefined ? {} : { output }),
+    ...(stdout ? { stdout: true } : {}),
+    ...(noGit ? { noGit: true } : {})
+  };
+}
+
 async function taskText(options: ParsedCliOptions): Promise<string> {
   if (options.task !== undefined) return options.task;
   const taskFile = options.taskFile;
@@ -176,7 +247,34 @@ export async function runCli(
   runner: ComparisonRunner = runComparison
 ): Promise<number> {
   try {
-    const parsed = parseCliArgs(argv);
+    if (argv.length === 1 && argv[0] === "--help") { io.stdout.write(`${CLI_USAGE}\n`); return 0; }
+    const parsed = argv.length === 1 && argv[0] === "evaluate"
+      ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
+      : parseCliArgs(argv);
+    if (parsed.command === "inspect") {
+      const compiled = await compileRepositoryIntelligence({ repositoryPath: parsed.repositoryPath, task: parsed.task, repositoryId: parsed.repositoryId, includeGitHistory: !parsed.noGit });
+      if (parsed.stdout) io.stdout.write(compiled.artifactJson);
+      else {
+        await writeIntelligenceArtifact({ repositoryPath: parsed.repositoryPath, artifact: compiled.artifact, outputPath: parsed.output });
+        const total = compiled.artifact.summary.findingCount;
+        io.stdout.write([`Intelligence artifact: ${parsed.output ?? DEFAULT_INTELLIGENCE_ARTIFACT_PATH}`, `Findings: ${total} (${compiled.artifact.summary.openFindingCount} open, ${compiled.artifact.summary.resolvedFindingCount} resolved)`, `Recommendations: ${compiled.artifact.summary.recommendationCount}`, `High-confidence findings: ${compiled.artifact.summary.highConfidenceFindingIds.length}`, ""].join("\n"));
+      }
+      return 0;
+    }
+    if (parsed.command === "evaluate-artifact") {
+      const artifactPath = resolve(parsed.repositoryPath, parsed.artifact);
+      let evaluation;
+      try {
+        evaluation = evaluateIntelligenceArtifact(JSON.parse(await readFile(artifactPath, "utf8")));
+      } catch {
+        evaluation = await evaluateIntelligenceArtifactFile(artifactPath);
+      }
+      if (parsed.json) io.stdout.write(`${JSON.stringify(evaluation)}\n`);
+      else {
+        io.stdout.write([`Evaluation: ${evaluation.status.toUpperCase()}`, `Open errors: ${evaluation.openErrorFindingIds.length}`, `Open warnings: ${evaluation.openWarningFindingIds.length}`, `Dangling references: ${evaluation.danglingReferenceCount}`, `Unexplained outliers: ${evaluation.unexplainedOutlierCount}`, ""].join("\n"));
+      }
+      return evaluation.exitCode;
+    }
     const result = await runner({
       repositoryPath: parsed.repositoryPath,
       task: await taskText(parsed),

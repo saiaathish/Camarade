@@ -1,0 +1,30 @@
+import { describe, expect, it } from "vitest";
+import { resolveRuleReferences } from "../src/intelligence/resolve-references.js";
+import { createStableId } from "../src/intelligence/stable-id.js";
+import type { RepositoryInventory, RepositoryRule } from "../src/intelligence/model.js";
+
+const inventory = (files: string[], directories: string[] = []): RepositoryInventory => ({ files: files.map((relativePath) => ({ id: relativePath, relativePath, kind: "source", language: "typescript", sizeBytes: 1, sha256: "a".repeat(64) })), directories, facts: [], skipped: [] });
+const rule = (statement: string, include: string[] = [], exclude: string[] = [], id = "rule-1"): RepositoryRule => ({ id, statement, normalizedSubject: "x", normalizedAction: "use", polarity: "require", strength: "required", scope: { include, exclude, technologies: [], taskKeywords: [] }, evidenceIds: ["e2", "e1", "e1"] });
+const one = (r: RepositoryRule, i = inventory(["src/a.ts"])) => resolveRuleReferences([r], i).references;
+describe("repository reference resolution", () => {
+  it("REQ-REF-00 supports the reference stable ID prefix", () => expect(createStableId("reference", ["r", "src/a.ts"])).toMatch(/^reference_[0-9a-f]{12}$/));
+  it("REQ-REF-01 extracts a backticked statement path", () => expect(one(rule("Use `src/a.ts`"))[0].normalizedPath).toBe("src/a.ts"));
+  it("REQ-REF-02 extracts a quoted statement path", () => expect(one(rule('Use "src/a.ts"'))[0].normalizedPath).toBe("src/a.ts"));
+  it("REQ-REF-03 reads scope include references", () => expect(one(rule("Use it", ["src/a.ts"])).map((x) => x.origins)).toContainEqual(["scope-include"]));
+  it("REQ-REF-04 reads scope exclude references", () => expect(one(rule("Use it", [], ["src/a.ts"])).map((x) => x.origins)).toContainEqual(["scope-exclude"]));
+  it("REQ-REF-05 ignores the default repository-wide glob", () => expect(one(rule("Use it", ["**/*"], ["**/*"])).length).toBe(0));
+  it("REQ-REF-06 marks an exact file path as current", () => expect(one(rule("Use src/a.ts"))[0].status).toBe("current"));
+  it("REQ-REF-07 marks an exact directory path as current", () => expect(one(rule("Use `src`"), inventory(["src/a.ts"], ["src"]))[0].status).toBe("current"));
+  it("REQ-REF-08 marks a matching glob as current", () => expect(one(rule("Use src/*.ts"))[0].status).toBe("current"));
+  it("REQ-REF-09 marks an unmatched repository path as missing", () => expect(one(rule("Use src/nope.ts"))[0].status).toBe("missing"));
+  it("REQ-REF-10 emits a stale finding for a missing path", () => expect(resolveRuleReferences([rule("Use src/nope.ts")], inventory([])).findings[0].kind).toBe("stale-reference"));
+  it("REQ-REF-11 marks an external URL without a stale finding", () => { const r = resolveRuleReferences([rule("See https://example.com/docs")], inventory([])); expect(r.references[0].status).toBe("external"); expect(r.findings).toHaveLength(0); });
+  it("REQ-REF-12 marks an absolute path as invalid", () => expect(one(rule("Use /src/a.ts"))[0].status).toBe("invalid"));
+  it("REQ-REF-13 marks parent traversal as invalid", () => expect(one(rule("Use ../src/a.ts"))[0].status).toBe("invalid"));
+  it("REQ-REF-14 marks repeated basename matches as ambiguous", () => expect(one(rule("Use a.ts"), inventory(["src/a.ts", "test/a.ts"]))[0].status).toBe("ambiguous"));
+  it("REQ-REF-15 normalizes backslashes and leading dot slash", () => expect(one(rule("Use `./src\\a.ts`"))[0].normalizedPath).toBe("src/a.ts"));
+  it("REQ-REF-16 deduplicates identical references for one rule", () => expect(one(rule("Use `src/a.ts` and src/a.ts")).length).toBe(1));
+  it("REQ-REF-17 preserves rule evidence in stale findings", () => expect(resolveRuleReferences([rule("Use src/nope.ts")], inventory([])).findings[0].evidenceIds).toEqual(["e1", "e2"]));
+  it("REQ-REF-18 returns deterministic ordering and stable IDs", () => { const a = resolveRuleReferences([rule("Use z.ts and a.ts", [], [], "b"), rule("Use b.ts", [], [], "a")], inventory([])); const b = resolveRuleReferences([rule("Use b.ts", [], [], "a"), rule("Use z.ts and a.ts", [], [], "b")], inventory([])); expect(a).toEqual(b); });
+  it("REQ-REF-19 does not mutate rules or inventory", () => { const r = rule("Use src/nope.ts"); const i = inventory(["src/a.ts"]); const before = JSON.stringify({ r, i }); resolveRuleReferences([r], i); expect(JSON.stringify({ r, i })).toBe(before); });
+});
