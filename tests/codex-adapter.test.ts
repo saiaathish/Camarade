@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest";import { runCodex } from "../src/adapters/codex-adapter.js";describe("Codex adapter",()=>{it("exports process runner",()=>expect(runCodex).toBeTypeOf("function"));});
