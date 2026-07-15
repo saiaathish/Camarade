@@ -1,0 +1,3 @@
+import fs from "node:fs";
+if (process.argv.includes("--version")) { console.log("fake-codex 1.0.0"); process.exit(0); }
+const args=process.argv; const cd=args.indexOf("--cd"); const worktree=cd>=0?args[cd+1]:process.cwd(); const out=args.indexOf("--output-last-message"); let prompt=""; process.stdin.setEncoding("utf8"); process.stdin.on("data",x=>prompt+=x); process.stdin.on("end",()=>{ fs.writeFileSync(`${worktree}/fake-codex-output.txt`,"fake\n"); if(out>=0) fs.writeFileSync(args[out+1],"Fake Codex completed.\n"); console.log(JSON.stringify({type:"result",usage:{input_tokens:1,output_tokens:1}})); if(process.env.CAMARADE_TEST_FAIL === "camarade" && process.env.CAMARADE_CONDITION === "camarade") process.exitCode=1; });

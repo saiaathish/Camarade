@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest";import { resolveCodexExecutable } from "../src/experiment/resolve-codex-executable.js";describe("Codex executable",()=>{it("resolves node through PATH",async()=>expect(await resolveCodexExecutable(process.execPath,process.env)).toBe(await import("node:fs/promises").then(x=>x.realpath(process.execPath))));});
