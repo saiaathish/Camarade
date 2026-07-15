@@ -1,0 +1,6 @@
+{
+  "name": "camarade-intelligence-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --experimental-strip-types --test tests/public-search.test.ts" }
+}

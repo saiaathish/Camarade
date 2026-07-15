@@ -1,0 +1,6 @@
+{
+  "name": "repository-intelligence-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/search.test.js" }
+}
