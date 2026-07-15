@@ -12,6 +12,7 @@ export interface RunValidationsOptions {
   cwd: string;
   logsDirectory: string;
   timeoutSeconds: number;
+  environment?: NodeJS.ProcessEnv;
 }
 
 const FORCE_KILL_DELAY_MS = 250;
@@ -33,6 +34,7 @@ async function runValidation(
     await stdout.close();
     throw cause;
   }
+  const startedWall = new Date().toISOString();
   const startedAt = performance.now();
   let timedOut = false;
   let spawnError: Error | undefined;
@@ -47,7 +49,7 @@ async function runValidation(
   const child = spawn(command, {
     cwd: options.cwd,
     detached: process.platform !== "win32",
-    env: createChildEnvironment(),
+    env: options.environment ?? createChildEnvironment(),
     shell: true,
     stdio: ["ignore", stdout.fd, stderr.fd]
   });
@@ -96,7 +98,12 @@ async function runValidation(
     exitCode,
     durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
     stdoutPath,
-    stderrPath
+    stderrPath,
+    startedAt: startedWall,
+    completedAt: new Date().toISOString(),
+    timedOut,
+    spawnFailed: spawnError !== undefined,
+    terminationWarnings: terminationErrors.map((error) => error.message)
   };
 }
 

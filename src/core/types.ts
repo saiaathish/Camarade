@@ -18,7 +18,7 @@ export type RunCondition = "baseline" | "camarade";
 export interface RunIdentity { comparisonId: string; runId: string; condition: RunCondition; }
 export interface UsageEvidence { inputTokens?: number; outputTokens?: number; unavailableReason?: string; }
 export interface AgentRunResult { exitCode: number | null; startedAt: string; completedAt: string; stdoutPath: string; stderrPath: string; usage: UsageEvidence; }
-export interface ValidationResult { command: string; exitCode: number | null; durationMs: number; stdoutPath: string; stderrPath: string; }
+export interface ValidationResult { command: string; exitCode: number | null; durationMs: number; stdoutPath: string; stderrPath: string; startedAt?: string; completedAt?: string; timedOut?: boolean; spawnFailed?: boolean; terminationWarnings?: string[]; }
 export interface RunMetrics { changedFiles: string[]; diffLineCount: number; dependencyFilesChanged: string[]; validationResults: ValidationResult[]; durationMs: number; }
 export interface RunPermissions { filesystem: EvidenceValue<string>; network: EvidenceValue<string>; shell: EvidenceValue<string>; }
 export interface RunLimits { timeoutSeconds: number; tokenBudget: EvidenceValue<number | string>; }
