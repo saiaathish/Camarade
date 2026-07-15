@@ -1,0 +1,5 @@
+import { describe, expect, it } from "vitest";
+import { ContextCompilationError } from "../src/core/errors.js";
+import { failureResult, mapMcpToolError } from "../src/mcp/mcp-errors.js";
+const textOf = (response: { content: Array<{ type: string; text?: string }> }) => response.content.find((item) => item.type === "text")?.text ?? "";
+describe("MCP errors", () => { it("preserves safe compiler fields", () => { const failure = mapMcpToolError(new ContextCompilationError("bad", "CONTEXT_REQUEST_INVALID", "request-validation", undefined, "/evidence")); expect(failure).toEqual({ status: "failed", code: "CONTEXT_REQUEST_INVALID", stage: "request-validation", message: "bad", evidence_path: "/evidence" }); }); it("sanitizes unknown errors", () => { const response = failureResult(mapMcpToolError(new Error("secret stack"))); expect(response.isError).toBe(true); expect(response.structuredContent).toEqual(JSON.parse(textOf(response))); expect(textOf(response)).not.toContain("secret"); }); });
