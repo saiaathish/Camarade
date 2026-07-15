@@ -16,6 +16,13 @@ export interface RepositoryInventory { directories: string[]; files: RepositoryF
 export type ConventionKind = "server-actions-for-mutations" | "shared-middleware-for-api-security" | "test-framework" | "import-alias" | "existing-utility-reuse";
 export interface RepositoryConvention { id: string; kind: ConventionKind; statement: string; evidenceIds: string[]; affectedRelativePaths: string[]; explanation: string; }
 export interface ArchitectureDecision { id: string; statement: string; evidenceIds: string[]; affectedRelativePaths: string[]; explanation: string; }
+export type ConfidenceLevel = "low" | "medium" | "high";
+export interface ConfidenceFactor { code: string; delta: number; explanation: string; supportingIds: string[]; }
+export interface ConfidenceAssessment { id: string; targetKind: "finding"; targetId: string; score: number; level: ConfidenceLevel; factors: ConfidenceFactor[]; explanation: string; }
+export interface RecommendationConfidence { level: ConfidenceLevel; score: number; reasons: string[]; penalties: string[]; }
+export type RecommendationKind = "update-reference" | "consolidate-rules" | "review-similarity" | "resolve-conflict" | "review-conflict" | "preserve-scope";
+export type RecommendationPriority = "low" | "medium" | "high" | "critical";
+export interface IntelligenceRecommendation { id: string; findingId: string; kind: RecommendationKind; priority: RecommendationPriority; action: string; rationale: string; affectedRuleIds: string[]; evidenceIds: string[]; confidenceAssessmentId: string; }
 export interface ConventionMiningResult { conventions: RepositoryConvention[]; architectureDecisions: ArchitectureDecision[]; findings: IntelligenceFinding[]; }
 export interface RelevantFileCandidate { relativePath: string; score: number; reasons: string[]; supportingFactIds: string[]; }
 export interface InstructionParseSkip { segmentId: string; reason: string; }
@@ -24,9 +31,8 @@ export type FindingKind = "duplicate" | "near-duplicate" | "contradiction" | "po
 export type FindingSeverity = "info" | "warning" | "error";
 export type FindingStatus = "open" | "resolved" | "superseded";
 export interface IntelligenceFinding { id: string; kind: FindingKind; summary: string; evidenceIds: string[]; affectedRuleIds: string[]; severity: FindingSeverity; status: FindingStatus; explanation: string; }
-export interface ConfidenceAssessment { level: "high" | "medium" | "low"; score: number; reasons: string[]; penalties: string[]; }
 export interface RecommendationException { kind: "explicit" | "inferred"; description: string; scope: RuleScope; evidenceIds: string[]; confidence: "high" | "medium" | "low"; }
-export interface Recommendation { id: string; statement: string; applicability: RuleScope; confidence: ConfidenceAssessment; evidenceIds: string[]; supportingFindingIds: string[]; contradictingFindingIds: string[]; exceptions: RecommendationException[]; explanation: string; }
+export interface Recommendation { id: string; statement: string; applicability: RuleScope; confidence: RecommendationConfidence; evidenceIds: string[]; supportingFindingIds: string[]; contradictingFindingIds: string[]; exceptions: RecommendationException[]; explanation: string; }
 export type SourceSegmentKind = "heading" | "paragraph" | "list-item" | "directive" | "code-block" | "configuration-entry" | "source-code-fact";
 export interface SourceSegment { id: string; sourceId: string; kind: SourceSegmentKind; startLine: number; endLine: number; rawExcerpt: string; normalizedText: string; excerptHash: string; }
 export interface EvidenceGraphMetadata { schemaVersion: "1.0"; repositoryName: string; repositoryCommit: string; task: string; }

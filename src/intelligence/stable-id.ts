@@ -11,7 +11,7 @@ import type {
   SourceSegment,
 } from "./model.js";
 
-export type StableIdPrefix = "source" | "evidence" | "segment" | "rule" | "finding" | "recommendation" | "file" | "fact" | "reference" | "convention" | "architecture-decision" | "history" | "exception";
+export type StableIdPrefix = "source" | "evidence" | "segment" | "rule" | "finding" | "recommendation" | "file" | "fact" | "reference" | "convention" | "architecture-decision" | "history" | "exception" | "confidence" | "graph" | "edge" | "artifact";
 
 export function normalizeSemanticText(value: string): string {
   return value.replace(/\r\n?/g, "\n").trim().replace(/\s+/g, " ").toLowerCase();
@@ -63,7 +63,7 @@ export function canonicalizeEvidenceGraph(graph: EvidenceGraph): EvidenceGraph {
   result.recommendations = result.recommendations.map((item: Recommendation) => ({
     ...clone(item), applicability: scope(item.applicability), evidenceIds: ids(item.evidenceIds),
     supportingFindingIds: ids(item.supportingFindingIds), contradictingFindingIds: ids(item.contradictingFindingIds),
-    confidence: { ...clone(item.confidence), reasons: uniqueSorted(item.confidence.reasons), penalties: uniqueSorted(item.confidence.penalties) },
+    confidence: { ...clone(item.confidence), reasons: uniqueSorted(item.confidence.reasons ?? []), penalties: uniqueSorted(item.confidence.penalties ?? []) },
     exceptions: item.exceptions.map(exception).sort((a, b) => compare(a.kind, b.kind) || compare(a.description, b.description) || compare(JSON.stringify(scope(a.scope)), JSON.stringify(scope(b.scope)))),
   })).sort(by("id"));
   return result;

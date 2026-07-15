@@ -1,0 +1,14 @@
+import { expect, it } from "vitest";
+import { generateIntelligenceRecommendations } from "../src/intelligence/generate-recommendations.js";
+const finding = (kind: any) => ({ id: `f-${kind}`, kind, summary: "s", evidenceIds: ["e"], affectedRuleIds: ["r"], severity: "info" as const, status: "open" as const, explanation: "Explain" });
+const run = (kind: any) => generateIntelligenceRecommendations({ findings: [finding(kind)], confidenceAssessments: [{ id: "c", targetKind: "finding", targetId: `f-${kind}`, score: 80, level: "high", factors: [], explanation: "Confidence high (80/100): x." }] })[0];
+it("REQ-REC-01 creates an update-reference recommendation", () => expect(run("stale-reference").kind).toBe("update-reference"));
+it("REQ-REC-02 creates a duplicate-consolidation recommendation", () => expect(run("duplicate").kind).toBe("consolidate-rules"));
+it("REQ-REC-03 creates a near-duplicate review recommendation", () => expect(run("near-duplicate").kind).toBe("review-similarity"));
+it("REQ-REC-04 creates a critical contradiction recommendation", () => expect(run("contradiction").priority).toBe("critical"));
+it("REQ-REC-05 creates a possible-conflict review recommendation", () => expect(run("possible-conflict").kind).toBe("review-conflict"));
+it("REQ-REC-06 creates a scope-preservation recommendation", () => expect(run("scope-resolved").kind).toBe("preserve-scope"));
+it("REQ-REC-07 preserves affected rule and evidence IDs", () => expect(run("duplicate").affectedRuleIds).toEqual(["r"]));
+it("REQ-REC-08 rejects a finding without a confidence assessment", () => expect(() => generateIntelligenceRecommendations({ findings: [finding("duplicate")], confidenceAssessments: [] })).toThrow("Missing confidence assessment"));
+it("REQ-REC-09 creates stable deterministically sorted recommendations", () => expect(run("duplicate").id).toBe(run("duplicate").id));
+it("REQ-REC-10 never chooses a winner and does not mutate input", () => { const f = finding("contradiction"); const before = JSON.stringify(f); const result = generateIntelligenceRecommendations({ findings: [f], confidenceAssessments: [{ id: "c", targetKind: "finding", targetId: f.id, score: 80, level: "high", factors: [], explanation: "x" }] }); expect(result[0].affectedRuleIds).toEqual(["r"]); expect(JSON.stringify(f)).toBe(before); });

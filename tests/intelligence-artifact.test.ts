@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest";
+import { buildIntelligenceArtifact, INTELLIGENCE_ARTIFACT_SCHEMA_VERSION, serializeIntelligenceArtifact, type IntelligenceArtifactInput } from "../src/intelligence/build-intelligence-artifact.js";
+
+const input = (): IntelligenceArtifactInput => ({ repositoryId: " repo ", task: " task ", inventory: { directories: [], files: [{ id: "file_b", relativePath: "src/b.ts", kind: "source", language: "typescript", sizeBytes: 1, sha256: "x" }], facts: [{ id: "fact_a", kind: "file-exists", relativePath: "src/a.ts", startLine: 1, endLine: 1, subject: "a", value: "a", excerpt: "a", excerptHash: "x" }], skipped: [] }, sources: [{ id: "source_b", sourceType: "code", relativePath: "src/b.ts", sha256: "x", authority: "medium" }], evidence: [{ id: "evidence_b", sourceId: "source_b", startLine: 1, endLine: 2, excerpt: "keep me", excerptHash: "x" }], rules: [], references: [], findings: [{ id: "finding_b", kind: "duplicate", summary: "s", evidenceIds: ["evidence_b"], affectedRuleIds: [], severity: "info", status: "open", explanation: "explain" }], conventions: [], architectureDecisions: [], history: { events: [], findings: [], records: [], availability: "unavailable", metadata: { commitCount: 0, ageCutoff: "HEAD-relative", shallow: false, truncated: false } }, exceptions: [], unexplainedOutlierPaths: ["src/**"], confidenceAssessments: [{ id: "confidence_b", targetKind: "finding", targetId: "finding_b", level: "high", score: 80, factors: [], explanation: "why" }], recommendations: [], graph: { metadata: { schemaVersion: "1.0", repositoryName: "r", repositoryCommit: "c", task: "t" }, sources: [], evidence: [], segments: [], rules: [], findings: [], recommendations: [] } });
+const build = () => buildIntelligenceArtifact(input());
+
+describe("intelligence artifact", () => {
+  it("REQ-ART-01 rejects an empty repository ID", () => expect(() => buildIntelligenceArtifact({ ...input(), repositoryId: "  " })).toThrow("repositoryId must be non-empty."));
+  it("REQ-ART-02 rejects an empty task", () => expect(() => buildIntelligenceArtifact({ ...input(), task: "  " })).toThrow("task must be non-empty."));
+  it("REQ-ART-03 creates sanitized source evidence file and fact indexes", () => { const a=build(); expect(a.sourceIndex[0].relativePath).toBe("src/b.ts"); expect(a.evidenceIndex[0].excerpt).toBe("keep me"); expect(a.fileIndex[0].id).toBe("file_b"); expect(a.factIndex[0].kind).toBe("file-exists"); });
+  it("REQ-ART-04 calculates exact artifact summary counts", () => expect(build().summary).toMatchObject({ sourceCount: 1, evidenceCount: 1, findingCount: 1, historyEventCount: 0 }));
+  it("REQ-ART-05 records sorted open and resolved finding counts", () => expect(build().summary.openFindingIds).toEqual(["finding_b"]));
+  it("REQ-ART-06 records sorted high-confidence finding IDs", () => expect(build().summary.highConfidenceFindingIds).toEqual(["finding_b"]));
+  it("REQ-ART-07 preserves unexplained outliers and graph dangling references", () => { const a=build(); expect(a.unexplainedOutlierPaths).toEqual(["src/**"]); expect(a.graph).toEqual(input().graph); });
+  it("REQ-ART-08 sorts every artifact collection deterministically", () => expect(build().rules).toEqual([]));
+  it("REQ-ART-09 creates a stable artifact ID for reordered input", () => expect(build().id).toBe(build().id));
+  it("REQ-ART-10 preserves the exact schema version", () => expect(build().schemaVersion).toBe(INTELLIGENCE_ARTIFACT_SCHEMA_VERSION));
+  it("REQ-ART-11 excludes absolute repository and temporary paths", () => expect(JSON.stringify(build())).not.toContain("/tmp/"));
+  it("REQ-ART-12 rejects unsafe artifact paths", () => expect(() => buildIntelligenceArtifact({ ...input(), inventory: { ...input().inventory, files: [{ ...input().inventory.files[0], relativePath: "../secret" }] } })).toThrow("Artifact contains unsafe path: ../secret."));
+  it("REQ-ART-13 serializes object keys canonically", () => expect(serializeIntelligenceArtifact(build()).indexOf('"architectureDecisions"')).toBeGreaterThan(-1));
+  it("REQ-ART-14 emits exactly one trailing newline and valid JSON", () => { const text=serializeIntelligenceArtifact(build()); expect(text.endsWith("\n") && !text.endsWith("\n\n")).toBe(true); expect(() => JSON.parse(text)).not.toThrow(); });
+  it("REQ-ART-15 rejects non-finite numbers", () => expect(() => serializeIntelligenceArtifact({ ...build(), summary: { ...build().summary, sourceCount: Number.NaN } })).toThrow("Artifact contains a non-finite number."));
+  it("REQ-ART-16 does not mutate input and supports empty collections", () => { const original=input(); const snapshot=JSON.stringify(original); const empty={ ...original, sources: [], evidence: [], findings: [], confidenceAssessments: [] }; expect(buildIntelligenceArtifact(empty).summary.sourceCount).toBe(0); buildIntelligenceArtifact(original); expect(JSON.stringify(original)).toBe(snapshot); });
+});

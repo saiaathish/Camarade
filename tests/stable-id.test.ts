@@ -48,8 +48,8 @@ describe("stable IDs", () => {
     shuffled.recommendations[0].evidenceIds.reverse();
     shuffled.recommendations[0].supportingFindingIds.reverse();
     shuffled.recommendations[0].contradictingFindingIds.reverse();
-    shuffled.recommendations[0].confidence.reasons.reverse();
-    shuffled.recommendations[0].confidence.penalties.reverse();
+    shuffled.recommendations[0]!.confidence.reasons!.reverse();
+    shuffled.recommendations[0]!.confidence.penalties!.reverse();
     expect(serializeEvidenceGraph(value)).toBe(serializeEvidenceGraph(shuffled));
   });
   it("canonicalization does not mutate the original graph", () => {
