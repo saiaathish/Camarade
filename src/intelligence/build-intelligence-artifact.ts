@@ -1,7 +1,8 @@
 import type { ResolvedRuleReference } from "./resolve-references.js";
 import type { GitHistoryAnalysisResult } from "./analyze-git-history.js";
 import type { DetectedException } from "./detect-exceptions.js";
-import type { ArchitectureDecision, ConfidenceAssessment, EvidenceAuthority, EvidenceGraph, EvidenceSource, EvidenceSpan, IntelligenceFinding, IntelligenceRecommendation, RepositoryConvention, RepositoryFile, RepositoryInventory, RepositoryRule } from "./model.js";
+import { validateEvidenceGraphStructure, type EvidenceGraph } from "./build-evidence-graph.js";
+import type { ArchitectureDecision, ConfidenceAssessment, EvidenceAuthority, EvidenceSource, EvidenceSpan, IntelligenceFinding, IntelligenceRecommendation, RepositoryConvention, RepositoryFile, RepositoryInventory, RepositoryRule } from "./model.js";
 import { createStableId } from "./stable-id.js";
 
 export const INTELLIGENCE_ARTIFACT_SCHEMA_VERSION = "1.0.0";
@@ -15,9 +16,11 @@ const pathKeys = (key:string):boolean => key === "path" || key === "Path" || key
 const unsafe = (value:string):boolean => value.startsWith("/") || /^\\\\/.test(value) || /^[A-Za-z]:[\\/]/.test(value) || value.split(/[\\/]/).includes("..");
 function inspect(value:unknown, key?:string):void { if (typeof value === "string") { if (key && pathKeys(key) && unsafe(value)) throw new Error(`Artifact contains unsafe path: ${value}.`); return; } if (typeof value === "number" && !Number.isFinite(value)) throw new Error("Artifact contains a non-finite number."); if (Array.isArray(value)) { value.forEach(item => inspect(item)); return; } if (value && typeof value === "object") Object.entries(value).forEach(([k,v]) => inspect(v,k)); }
 function canonical(value:unknown):unknown { if (Array.isArray(value)) return value.map(canonical); if (value && typeof value === "object") return Object.fromEntries(Object.keys(value as Record<string,unknown>).sort().map(key => [key,canonical((value as Record<string,unknown>)[key])])); return value; }
+function inspectGraph(graph:unknown):void { const validation=validateEvidenceGraphStructure(graph); if (!validation.valid) throw new Error(`Artifact graph is structurally invalid: ${validation.errors.join("; ")}.`); }
 export function buildIntelligenceArtifact(input:IntelligenceArtifactInput):IntelligenceArtifact {
   const repositoryId=input.repositoryId.trim(); const task=input.task.trim();
   if (!repositoryId) throw new Error("repositoryId must be non-empty."); if (!task) throw new Error("task must be non-empty.");
+  inspectGraph(input.graph);
   const sources=sorted(input.sources), evidence=sorted(input.evidence), rules=sorted(input.rules), references=sorted(input.references), findings=sorted(input.findings), conventions=sorted(input.conventions), architectureDecisions=sorted(input.architectureDecisions), exceptions=sorted(input.exceptions), confidenceAssessments=sorted(input.confidenceAssessments), recommendations=sorted(input.recommendations);
   const sourceIndex=sources.map(({id,relativePath,authority})=>({id,relativePath,authority}));
   const evidenceIndex=evidence.map(({id,sourceId,startLine,endLine,excerpt})=>({id,sourceId,startLine,endLine,excerpt}));
@@ -27,7 +30,7 @@ export function buildIntelligenceArtifact(input:IntelligenceArtifactInput):Intel
   const highConfidenceFindingIds=[...new Set(confidenceAssessments.filter(c=>c.targetKind==="finding"&&c.level==="high"&&c.targetId).map(c=>c.targetId as string))].sort();
   const summary={sourceCount:sources.length,evidenceCount:evidence.length,ruleCount:rules.length,referenceCount:references.length,findingCount:findings.length,openFindingCount:openFindingIds.length,resolvedFindingCount:findings.filter(f=>f.status==="resolved").length,conventionCount:conventions.length,architectureDecisionCount:architectureDecisions.length,historyEventCount:input.history.events.length,exceptionCount:exceptions.length,unexplainedOutlierCount:input.unexplainedOutlierPaths.length,recommendationCount:recommendations.length,highConfidenceFindingIds,openFindingIds};
   const artifactWithoutId={schemaVersion:INTELLIGENCE_ARTIFACT_SCHEMA_VERSION,repositoryId,task,summary,sourceIndex,evidenceIndex,fileIndex,factIndex,rules,references,findings,conventions,architectureDecisions:clone(architectureDecisions),history:clone(input.history),exceptions,unexplainedOutlierPaths:[...input.unexplainedOutlierPaths].sort(),confidenceAssessments,recommendations,graph:clone(input.graph)};
-  const id=createStableId("artifact",[INTELLIGENCE_ARTIFACT_SCHEMA_VERSION,repositoryId,task,...[sourceIndex,evidenceIndex,fileIndex,factIndex,rules,references,findings,conventions,architectureDecisions,exceptions,confidenceAssessments,recommendations].flatMap(collection=>collection.map(item=>item.id)),input.graph.metadata,summary,artifactWithoutId.unexplainedOutlierPaths]);
+  const id=createStableId("artifact",[INTELLIGENCE_ARTIFACT_SCHEMA_VERSION,repositoryId,task,...[sourceIndex,evidenceIndex,fileIndex,factIndex,rules,references,findings,conventions,architectureDecisions,exceptions,confidenceAssessments,recommendations].flatMap(collection=>collection.map(item=>item.id)),artifactWithoutId.graph,summary,artifactWithoutId.unexplainedOutlierPaths]);
   const artifact={...artifactWithoutId,id} as IntelligenceArtifact; inspect(artifact); return artifact;
 }
-export function serializeIntelligenceArtifact(artifact:IntelligenceArtifact):string { inspect(artifact); return `${JSON.stringify(canonical(artifact),null,2)}\n`; }
+export function serializeIntelligenceArtifact(artifact:IntelligenceArtifact):string { inspectGraph(artifact.graph); inspect(artifact); return `${JSON.stringify(canonical(artifact),null,2)}\n`; }

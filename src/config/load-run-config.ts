@@ -3,10 +3,58 @@ import { join } from "node:path";
 import { parse } from "yaml";
 import { RunConfigError } from "../core/errors.js";
 import type { LoadedRunConfig } from "../core/types.js";
+import {
+  DEFAULT_CONTEXT_BUDGET,
+  type ContextBudgetConfig
+} from "../context/context-types.js";
 
 const DEFAULT_TIMEOUT = 1800;
 
-export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunConfig> {
+export interface LoadedRunConfigWithContext extends LoadedRunConfig {
+  contextCompilerBudget?: ContextBudgetConfig;
+}
+
+function positiveInteger(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new RunConfigError(`${field} must be a positive integer in camarade.run.yaml.`);
+  }
+  return value;
+}
+
+function contextBudget(config: Record<string, unknown>): ContextBudgetConfig | undefined {
+  const rawCompiler = config.context_compiler;
+  if (rawCompiler === undefined) return undefined;
+  if (typeof rawCompiler !== "object" || rawCompiler === null || Array.isArray(rawCompiler)) {
+    throw new RunConfigError("context_compiler must be a mapping in camarade.run.yaml.");
+  }
+  const rawBudget = (rawCompiler as Record<string, unknown>).budget;
+  if (rawBudget === undefined) return undefined;
+  if (typeof rawBudget !== "object" || rawBudget === null || Array.isArray(rawBudget)) {
+    throw new RunConfigError("context_compiler.budget must be a mapping in camarade.run.yaml.");
+  }
+  const budget = rawBudget as Record<string, unknown>;
+  const unit = budget.unit ?? DEFAULT_CONTEXT_BUDGET.unit;
+  if (unit !== "characters") {
+    throw new RunConfigError("context_compiler.budget.unit must be characters in camarade.run.yaml.");
+  }
+  return {
+    unit,
+    maximum: positiveInteger(
+      budget.maximum ?? DEFAULT_CONTEXT_BUDGET.maximum,
+      "context_compiler.budget.maximum"
+    ),
+    maximumItems: positiveInteger(
+      budget.maximum_items ?? DEFAULT_CONTEXT_BUDGET.maximumItems,
+      "context_compiler.budget.maximum_items"
+    ),
+    maximumEvidenceItemsPerRule: positiveInteger(
+      budget.maximum_evidence_items_per_rule ?? DEFAULT_CONTEXT_BUDGET.maximumEvidenceItemsPerRule,
+      "context_compiler.budget.maximum_evidence_items_per_rule"
+    )
+  };
+}
+
+export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunConfigWithContext> {
   if (repositoryPath.trim() === "") throw new RunConfigError("Repository path is empty.");
   let repositoryStat;
   try { repositoryStat = await stat(repositoryPath); } catch (cause) { throw new RunConfigError(`Repository path does not exist: ${repositoryPath}`, cause); }
@@ -26,5 +74,11 @@ export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunCo
   if (new Set(commands).size !== commands.length) throw new RunConfigError("validationCommands contains duplicate commands after trimming in camarade.run.yaml.");
   const timeout = config.timeoutSeconds ?? DEFAULT_TIMEOUT;
   if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout <= 0) throw new RunConfigError("timeoutSeconds must be a positive integer in camarade.run.yaml.");
-  return { configPath, validationCommands: commands, timeoutSeconds: timeout };
+  const compilerBudget = contextBudget(config);
+  return {
+    configPath,
+    validationCommands: commands,
+    timeoutSeconds: timeout,
+    ...(compilerBudget === undefined ? {} : { contextCompilerBudget: compilerBudget })
+  };
 }

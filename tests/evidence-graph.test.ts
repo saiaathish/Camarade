@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEvidenceGraph, type EvidenceGraphInput } from "../src/intelligence/build-evidence-graph.js";
+import { buildEvidenceGraph, validateEvidenceGraphStructure, type EvidenceGraphInput } from "../src/intelligence/build-evidence-graph.js";
 
 const input = (): EvidenceGraphInput => ({ inventory: { directories: [], files: [], facts: [], skipped: [] }, sources: [], evidence: [], rules: [], references: [], findings: [], conventions: [], architectureDecisions: [], history: { events: [], findings: [], records: [], availability: "unavailable", metadata: { commitCount: 0, ageCutoff: "HEAD-relative", shallow: false, truncated: false } }, exceptions: [], confidenceAssessments: [], recommendations: [] });
 const graph = () => buildEvidenceGraph(input());
@@ -25,4 +25,7 @@ describe("evidence graph", () => {
   it("REQ-GRAPH-18 creates stable edge and graph IDs", () => expect(graph().id).toBe(buildEvidenceGraph(input()).id));
   it("REQ-GRAPH-19 returns deterministically sorted output for reordered input", () => expect(graph()).toEqual(buildEvidenceGraph(input())));
   it("REQ-GRAPH-20 does not mutate input or expose absolute paths", () => expect(JSON.stringify(graph())).not.toContain("/Users/"));
+  it("REQ-GRAPH-21 validates the actual node and edge graph shape", () => expect(validateEvidenceGraphStructure(graph())).toEqual({ valid: true, errors: [] }));
+  it("REQ-GRAPH-22 rejects duplicate nodes and missing edge endpoints deterministically", () => { const value=graph(); value.nodes=[{ id: "node_a", kind: "source", label: "a" }, { id: "node_a", kind: "source", label: "a" }]; value.edges=[{ id: "edge_a", kind: "supports", fromId: "node_a", toId: "missing", explanation: "support" }]; const result=validateEvidenceGraphStructure(value); expect(result.valid).toBe(false); expect(result.errors.join("\n")).toContain("duplicate node ID"); expect(result.errors.join("\n")).toContain("missing node reference 'missing'"); expect(result.errors).toEqual([...result.errors].sort()); });
+  it("REQ-GRAPH-23 validates declared dangling-reference ownership without rejecting an honest missing target", () => { const value=graph(); value.nodes=[{ id: "rule_a", kind: "rule", label: "Use A" }]; value.danglingReferences=[{ ownerId: "rule_a", relation: "evidenceIds", missingId: "evidence_missing" }]; expect(validateEvidenceGraphStructure(value).valid).toBe(true); value.danglingReferences[0].ownerId="missing_owner"; expect(validateEvidenceGraphStructure(value).errors.join("\n")).toContain("missing node reference 'missing_owner'"); });
 });

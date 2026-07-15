@@ -2,9 +2,12 @@ import { readFile } from "node:fs/promises";
 import path, { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SIMULATED_EXECUTION_LABEL } from "./adapters/fixture-adapter.js";
+import { ContextCompilationError } from "./core/errors.js";
+import type { ContextCompilationRequest, ContextCompilationResult } from "./context/context-types.js";
 import { compileRepositoryIntelligence } from "./intelligence/compile-repository-intelligence.js";
 import { evaluateIntelligenceArtifact, evaluateIntelligenceArtifactFile } from "./intelligence/evaluate-intelligence-artifact.js";
 import { DEFAULT_INTELLIGENCE_ARTIFACT_PATH, writeIntelligenceArtifact } from "./intelligence/write-intelligence-artifact.js";
+import { compileContextPipeline } from "./pipeline/compile-context-pipeline.js";
 import {
   runComparison,
   RunComparisonError,
@@ -25,6 +28,7 @@ const SINGLE_VALUE_FLAGS = new Set([
 
 export const CLI_USAGE = [
 "Usage:",
+  "  camarade compile --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--reasoner fixture] [--context-budget CHARACTERS] [--intelligence-artifact REPO-REL] [--output-format human|json]",
   "  camarade inspect --task TEXT [--repo PATH] [--repository-id ID] [--output REPO-REL] [--stdout] [--no-git]",
   "  camarade evaluate [--repo PATH] [--artifact REPO-REL] [--json]",
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) --adapter fixture --controller-root PATH [--timeout SECONDS]",
@@ -61,7 +65,19 @@ export interface ParsedArtifactEvaluateOptions {
   json: boolean;
 }
 
-export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions;
+export interface ParsedCompileOptions {
+  command: "compile";
+  repositoryPath: string;
+  task?: string;
+  taskFile?: string;
+  controllerRoot?: string;
+  reasoner: "fixture";
+  contextBudget?: number;
+  intelligenceArtifactPath?: string;
+  outputFormat: "human" | "json";
+}
+
+export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions;
 
 export interface CliIo {
   stdout: { write(content: string): unknown };
@@ -69,6 +85,7 @@ export interface CliIo {
 }
 
 export type ComparisonRunner = (options: RunComparisonOptions) => Promise<RunComparisonResult>;
+export type ContextCompilerRunner = (options: ContextCompilationRequest) => Promise<ContextCompilationResult>;
 
 export class CliUsageError extends Error {
   constructor(message: string) {
@@ -112,9 +129,10 @@ function parseAdapter(value: string): "fixture" | "command" {
 export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): ParsedCommandOptions {
   if (argv.length === 0) throw new CliUsageError("Missing command: evaluate.");
   if (argv[0] === "inspect") return parseInspectArgs(argv, cwd);
+  if (argv[0] === "compile") return parseCompileArgs(argv, cwd);
   if (argv.length === 1 && argv[0] === "evaluate") throw new CliUsageError("Missing evaluation artifact options.");
   if (argv[0] !== "evaluate") {
-    throw new CliUsageError(`Unknown command ${JSON.stringify(argv[0])}. Expected: evaluate.`);
+    throw new CliUsageError(`Unknown command ${JSON.stringify(argv[0])}. Expected: compile, inspect, or evaluate.`);
   }
 
   if (!argv.some(flag => ["--task", "--task-file", "--adapter", "--controller-root", "--command-executable", "--command-arg", "--timeout"].includes(flag))) {
@@ -190,6 +208,73 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
   };
 }
 
+function positiveIntegerFlag(value: string | undefined, flag: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new CliUsageError(`${flag} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function safeRepositoryRelativePath(value: string, flag: string): string {
+  if (path.isAbsolute(value) || value === "<task>" || value.includes("\0") || value.split(/[\\/]/).includes("..")) {
+    throw new CliUsageError(`${flag} must be a safe repository-relative path.`);
+  }
+  return value.replaceAll("\\", "/");
+}
+
+function parseCompileArgs(argv: readonly string[], cwd: string): ParsedCompileOptions {
+  const allowed = new Set([
+    "--repo",
+    "--task",
+    "--task-file",
+    "--controller-root",
+    "--reasoner",
+    "--context-budget",
+    "--intelligence-artifact",
+    "--output-format"
+  ]);
+  const values = new Map<string, string>();
+  for (let index = 1; index < argv.length; index += 1) {
+    const flag = argv[index];
+    if (flag === undefined || !allowed.has(flag)) throw new CliUsageError(`Unknown flag: ${flag}.`);
+    if (values.has(flag)) throw new CliUsageError(`Duplicate flag: ${flag}.`);
+    values.set(flag, requiredValue(argv, index, flag));
+    index += 1;
+  }
+  const task = values.get("--task");
+  const taskFile = values.get("--task-file");
+  if ((task === undefined) === (taskFile === undefined)) {
+    throw new CliUsageError("Exactly one of --task or --task-file is required.");
+  }
+  if (task !== undefined && task.trim() === "") throw new CliUsageError("--task must be non-empty.");
+  if (taskFile !== undefined && taskFile.trim() === "") throw new CliUsageError("--task-file must be non-empty.");
+  const reasoner = values.get("--reasoner") ?? "fixture";
+  if (reasoner !== "fixture") throw new CliUsageError("--reasoner must be fixture in Stage 4.");
+  const outputFormat = values.get("--output-format") ?? "human";
+  if (outputFormat !== "human" && outputFormat !== "json") {
+    throw new CliUsageError("--output-format must be human or json.");
+  }
+  const intelligenceArtifact = values.get("--intelligence-artifact");
+  const controllerRoot = values.get("--controller-root");
+  return {
+    command: "compile",
+    repositoryPath: resolve(cwd, requiredFlag(values, "--repo")),
+    ...(task === undefined ? {} : { task }),
+    ...(taskFile === undefined ? {} : { taskFile: resolve(cwd, taskFile) }),
+    ...(controllerRoot === undefined ? {} : { controllerRoot: resolve(cwd, controllerRoot) }),
+    reasoner,
+    ...(positiveIntegerFlag(values.get("--context-budget"), "--context-budget") === undefined
+      ? {}
+      : { contextBudget: positiveIntegerFlag(values.get("--context-budget"), "--context-budget") }),
+    ...(intelligenceArtifact === undefined
+      ? {}
+      : { intelligenceArtifactPath: safeRepositoryRelativePath(intelligenceArtifact, "--intelligence-artifact") }),
+    outputFormat
+  };
+}
+
 function parseInspectArgs(argv: readonly string[], cwd: string): ParsedInspectOptions {
   const values = new Map<string, string>();
   let stdout = false;
@@ -237,6 +322,22 @@ async function taskText(options: ParsedCliOptions): Promise<string> {
   return task;
 }
 
+async function compilationTaskText(options: ParsedCompileOptions): Promise<string> {
+  if (options.task !== undefined) return options.task;
+  const taskFile = options.taskFile;
+  if (taskFile === undefined) throw new CliUsageError("Exactly one task source is required.");
+  let content: string;
+  try {
+    content = await readFile(taskFile, "utf8");
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new CliUsageError(`Task file cannot be read: ${taskFile}. ${detail}`);
+  }
+  if (content.trim() === "") throw new CliUsageError(`Task file is empty: ${taskFile}.`);
+  if (content.includes("\0")) throw new CliUsageError(`Task file contains null bytes: ${taskFile}.`);
+  return content;
+}
+
 function defaultIo(): CliIo {
   return { stdout: process.stdout, stderr: process.stderr };
 }
@@ -244,13 +345,68 @@ function defaultIo(): CliIo {
 export async function runCli(
   argv: readonly string[],
   io: CliIo = defaultIo(),
-  runner: ComparisonRunner = runComparison
+  runner: ComparisonRunner = runComparison,
+  contextCompiler: ContextCompilerRunner = compileContextPipeline
 ): Promise<number> {
   try {
     if (argv.length === 1 && argv[0] === "--help") { io.stdout.write(`${CLI_USAGE}\n`); return 0; }
     const parsed = argv.length === 1 && argv[0] === "evaluate"
       ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
       : parseCliArgs(argv);
+    if (parsed.command === "compile") {
+      const task = await compilationTaskText(parsed);
+      const result = await contextCompiler({
+        repositoryPath: parsed.repositoryPath,
+        task,
+        ...(parsed.controllerRoot === undefined ? {} : { controllerRoot: parsed.controllerRoot }),
+        ...(parsed.contextBudget === undefined ? {} : { budget: { maximum: parsed.contextBudget } }),
+        ...(parsed.intelligenceArtifactPath === undefined ? {} : { intelligenceArtifactPath: parsed.intelligenceArtifactPath })
+      });
+      if (parsed.outputFormat === "json") {
+        io.stdout.write(`${JSON.stringify({
+          status: "complete",
+          compilationId: result.compilationId,
+          repositoryPath: result.repositoryPath,
+          controllerRoot: result.controllerRoot,
+          summary: result.summary,
+          artifacts: result.artifacts,
+          provenance: result.manifest
+        })}\n`);
+      } else {
+        io.stdout.write([
+          "Camarade context compilation complete.",
+          "",
+          "Task:",
+          task,
+          "",
+          "Candidates:",
+          String(result.summary.candidates),
+          "",
+          "Included:",
+          String(result.summary.included),
+          "",
+          "Excluded:",
+          String(result.summary.excluded),
+          "",
+          "Unresolved:",
+          String(result.summary.unresolved),
+          "",
+          "Budget:",
+          `${result.summary.budget.used.toLocaleString("en-US")} / ${result.summary.budget.maximum.toLocaleString("en-US")} characters`,
+          "",
+          "Controller root:",
+          result.controllerRoot,
+          "",
+          "Context contract:",
+          result.artifacts.contractMarkdown,
+          "",
+          "Machine-readable contract:",
+          result.artifacts.contractJson,
+          ""
+        ].join("\n"));
+      }
+      return 0;
+    }
     if (parsed.command === "inspect") {
       const compiled = await compileRepositoryIntelligence({ repositoryPath: parsed.repositoryPath, task: parsed.task, repositoryId: parsed.repositoryId, includeGitHistory: !parsed.noGit });
       if (parsed.stdout) io.stdout.write(compiled.artifactJson);
@@ -295,6 +451,22 @@ export async function runCli(
     ].join("\n"));
     return 0;
   } catch (cause) {
+    if (cause instanceof ContextCompilationError) {
+      io.stderr.write([
+        "Camarade context compilation failed.",
+        "",
+        "Stage:",
+        cause.stage,
+        "",
+        "Code:",
+        cause.code,
+        "",
+        "Evidence:",
+        cause.evidencePath ?? "Unavailable",
+        ""
+      ].join("\n"));
+      return 1;
+    }
     if (cause instanceof RunComparisonError) {
       io.stderr.write([
         `Problem: ${cause.message}`,
