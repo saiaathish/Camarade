@@ -76,9 +76,27 @@ experiment:
     cross_run_overwrite_allowed: false
 evaluation:
   weights: {correctness: 40, requirement_completion: 25, instruction_compliance: 20, change_focus: 10, efficiency: 5}
-  outcomes: [win, tie, regression, invalid-or-limited]
+  definition_version: 1
+  statuses: [valid, limited, invalid]
+  outcomes: [win, tie, regression]
+  check_results: [pass, fail, unavailable, error]
+  rule_severities: [normal, material]
   tie_tolerance:
-    status: pending-stage-6
+    type: absolute-score-points
+    value: 1
+    inclusive: true
+    declared_before_official_runs: true
+  evidence:
+    deterministic_only: true
+    llm_as_judge_allowed: false
+    missing_measurement_result: unavailable
+    estimated_measurements_allowed: false
+  official_benchmark:
+    required_status: valid
+    full_measurable_score_required: true
+    winner_allowed_for_limited: false
+    winner_allowed_for_invalid: false
+  supported_check_types: [command, file-exists, file-absent, text-present, text-absent, path-unchanged, path-changed, dependency-present, dependency-absent, json-value]
 scope:
   build: [repository-scanner, instruction-parser, finding-detector, evidence-collection, context-compiler, agent-adapter-interface, codex-adapter, worktree-experiment-runner, deterministic-evaluator, cli, dashboard, benchmark-artifacts]
   non_goals: [accounts, billing, organizations, ide-extensions, full-multi-agent-implementation, permanent-personal-memory, rules-marketplace, enterprise-infrastructure]
