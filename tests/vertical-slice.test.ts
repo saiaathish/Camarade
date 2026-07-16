@@ -108,7 +108,8 @@ function normalizeValue(
 
 function normalizeText(value: string, replacements: ReadonlyMap<string, string>): string {
   return replacePaths(value, replacements)
-    .replace(/duration_ms:?\s*[0-9.]+/gu, "duration_ms: <duration>");
+    .replace(/duration_ms:?\s*[0-9.]+/gu, "duration_ms: <duration>")
+    .replace(/\([0-9.]+\s*ms\)/gu, "(<duration>)");
 }
 
 function normalizeArtifactFiles(

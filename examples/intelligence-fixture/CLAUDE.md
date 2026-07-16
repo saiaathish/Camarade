@@ -1,4 +1,4 @@
 # Intelligence fixture API guidance
 
-- Apply rate limiting to every API handler.
+- Use per-handler rate limiting in every API handler under `pages/api/public/`.
 - Install and use `express-rate-limit` for rate limiting.

@@ -1,0 +1,15 @@
+import { describe, it, expect } from "vitest";
+import { auditExperimentFairness } from "../src/experiment/audit-experiment-fairness.js";
+const base = () => ({ prepared:{fairnessAudit:{status:"pass"},baseline:{startingCommit:"c",taskHash:"t",worktree:{startingTree:"tr",path:"/b"}},camarade:{startingCommit:"c",taskHash:"t",worktree:{startingTree:"tr",path:"/c"}}}, executed:{codex:{resolvedExecutable:"x",model:"m"}}, baselineValidation:{commandListHash:"q",timeoutSeconds:1,environment:{normalizedValueHash:"e"}}, camaradeValidation:{commandListHash:"q",timeoutSeconds:1,environment:{normalizedValueHash:"e"}}, sourcePostRunState:{clean:true} });
+describe("S5-04 fairness audit",()=>{
+ it("passes matched evidence",()=>expect(auditExperimentFairness(base() as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("pass"));
+ it("fails commit mismatch",()=>{const x=base();x.prepared.camarade.startingCommit="z";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails tree mismatch",()=>{const x=base();x.prepared.camarade.worktree.startingTree="z";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails task mismatch",()=>{const x=base();x.prepared.camarade.taskHash="z";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails command mismatch",()=>{const x=base();x.camaradeValidation.commandListHash="z";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails timeout mismatch",()=>{const x=base();x.camaradeValidation.timeoutSeconds=2;expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails environment mismatch",()=>{const x=base();x.camaradeValidation.environment.normalizedValueHash="z";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails source modification",()=>{const x=base();x.sourcePostRunState.clean=false;expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("fails shared worktree",()=>{const x=base();x.prepared.camarade.worktree.path="/b";expect(auditExperimentFairness(x as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).status).toBe("fail")});
+ it("does not score outcomes",()=>expect(auditExperimentFairness(base() as unknown as import("../src/experiment/audit-experiment-fairness.js").AuditExperimentFairnessInput).checks.some(c=>c.checkId.includes("score"))).toBe(false));
+});

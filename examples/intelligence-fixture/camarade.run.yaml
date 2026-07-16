@@ -1,3 +1,9 @@
 validationCommands:
   - npm test
 timeoutSeconds: 30
+context_compiler:
+  budget:
+    unit: characters
+    maximum: 12000
+    maximum_items: 40
+    maximum_evidence_items_per_rule: 3

@@ -9,6 +9,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "camarade": "tsx src/cli.ts",
+    "mcp": "tsx src/mcp/start-server.ts",
+    "verify:mcp:stage4": "tsx scripts/verify-stage-4-mcp.ts",
+    "verify:mcp:stage5": "tsx scripts/verify-stage-5-mcp.ts",
+    "verify:mcp": "npm run verify:mcp:stage4 && npm run verify:mcp:stage5",
+    "certify:stage5": "npm run build && npm run verify:mcp",
+    "certify:stage5:live": "tsx scripts/run-live-stage-5-certification.ts",
     "create:hero-fixture": "tsx scripts/create-hero-fixture.ts"
   },
   "devDependencies": {
@@ -18,6 +24,8 @@
     "vitest": "^2.1.8"
   },
   "dependencies": {
-    "yaml": "^2.9.0"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "yaml": "^2.9.0",
+    "zod": "4.4.3"
   }
 }

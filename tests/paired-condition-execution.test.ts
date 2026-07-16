@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest";import { executePreparedExperiment } from "../src/experiment/execute-prepared-experiment.js";describe("paired execution",()=>{it("exports paired executor",()=>expect(executePreparedExperiment).toBeTypeOf("function"));});

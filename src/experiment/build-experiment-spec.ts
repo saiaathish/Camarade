@@ -1,0 +1,18 @@
+import { createHash, randomUUID } from "node:crypto";
+import type { LoadedRunConfigWithContext } from "../config/load-run-config.js";
+import { DEFAULT_CONTEXT_BUDGET, type ContextBudgetConfig } from "../context/context-types.js";
+import { canonicalJson, sha256 } from "../context/context-serialization.js";
+import { normalizeTask } from "../context/normalize-task.js";
+import { createStableId } from "../intelligence/stable-id.js";
+import type { FairExperimentRequest, FairExperimentSpecification } from "./experiment-types.js";
+import { EXPERIMENT_CONTROLLER_VERSION, EXPERIMENT_SCHEMA_VERSION } from "./experiment-types.js";
+import { ExperimentContractError } from "./experiment-errors.js";
+import { validateFairExperimentRequest } from "./validate-experiment-request.js";
+export interface BuildExperimentSpecificationOptions { experimentIdFactory?:()=>string; }
+export function buildFairExperimentSpecification(request:FairExperimentRequest, config:LoadedRunConfigWithContext, options:BuildExperimentSpecificationOptions={}):FairExperimentSpecification {
+ const r=validateFairExperimentRequest(request); if(!config.experiment) throw new ExperimentContractError("Stage 5 experiment configuration is required.","EXPERIMENT_CONFIG_INVALID","load-configuration"); if(config.validationCommands.length===0) throw new ExperimentContractError("A Stage 5 fair experiment requires at least one objective validation command.","EXPERIMENT_CONFIG_INVALID","load-configuration");
+ const id=r.experimentId ?? (options.experimentIdFactory?.() ?? `experiment-${randomUUID()}`); if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || id === "." || id === "..") throw new ExperimentContractError("Generated experiment ID is invalid.","EXPERIMENT_REQUEST_INVALID","request-validation");
+ const budget:ContextBudgetConfig={...(config.contextCompilerBudget ?? DEFAULT_CONTEXT_BUDGET),...(r.contextBudget===undefined?{}:{maximum:r.contextBudget})}; const conditions=[{conditionId:"baseline" as const,contextKind:"original-repository" as const},{conditionId:"camarade" as const,contextKind:"camarade-compiled" as const}]; const order=config.experiment.executionOrder === "baseline-first" ? ["baseline","camarade"] as const : ["camarade","baseline"] as const;
+ const normalized=normalizeTask(r.task).normalizedTask; const taskHash=sha256(r.task), codexHash=sha256(canonicalJson(config.experiment.codex)), validationHash=sha256(canonicalJson(config.validationCommands)), budgetHash=sha256(canonicalJson(budget)); const identity={schemaVersion:EXPERIMENT_SCHEMA_VERSION,controllerVersion:EXPERIMENT_CONTROLLER_VERSION,repositoryPath:r.repositoryPath,taskHash,normalizedTask:normalized,instructionMode:config.experiment.instructionMode,executionOrder:config.experiment.executionOrder,conditions,codex:config.experiment.codex,validationCommands:config.validationCommands,contextBudget:budget}; const specificationHash=sha256(canonicalJson(identity));
+ return {schemaVersion:EXPERIMENT_SCHEMA_VERSION,controllerVersion:EXPERIMENT_CONTROLLER_VERSION,experimentId:id,specificationId:createStableId("artifact",["experiment-specification",identity]),specificationHash,repositoryPath:r.repositoryPath,task:{original:r.task,normalized:identity.normalizedTask,sha256:taskHash},instructionMode:config.experiment.instructionMode,executionOrder:config.experiment.executionOrder,orderedConditionIds:[...order],conditions,codex:config.experiment.codex,validationCommands:config.validationCommands,contextBudget:budget,hashes:{codexConfiguration:codexHash,validationConfiguration:validationHash,contextBudget:budgetHash}};
+}

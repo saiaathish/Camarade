@@ -1,0 +1,1 @@
+import { describe, expect, it } from "vitest";import { captureConditionResult } from "../src/experiment/capture-condition-result.js";describe("condition execution",()=>{it("exports evidence capture",()=>expect(captureConditionResult).toBeTypeOf("function"));});
