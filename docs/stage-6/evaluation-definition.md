@@ -42,4 +42,6 @@ This example demonstrates schema structure only. Its commands, paths, requiremen
 
 S6-01 validates the definition but does not execute commands, read hidden assets, hash hidden assets, calculate scores, or declare an outcome.
 
+For S6-02 sealing, hidden-asset paths are relative to the definition directory. Hidden assets must be outside the target repository and must be regular non-symlink files. The definition and assets are reread before publication; mutation aborts execution. Sealed copies live in controller-owned storage. S6-02 hashes and copies assets but does not execute them.
+
 Invalid relative paths, symlink files, unknown properties, tolerance `1.1`, duplicate IDs, and conflicting policy patterns are rejected with typed errors. The loader requires an absolute regular non-symlink file, checks size before reading, enforces 1 MiB, uses JSON.parse, and validates structure and semantics. S6-02 will protect hidden assets.

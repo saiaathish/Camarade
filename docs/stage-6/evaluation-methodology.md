@@ -4,7 +4,7 @@
 Stage 6 uses predeclared deterministic evidence to compare matched runs.
 
 ## Stage boundary
-S6-01 defines, validates, and securely loads definitions. It does not seal experiments, execute checks, measure, score, report, integrate MCP, or certify the hero.
+S6-01 defines, validates, and securely loads definitions. S6-02 seals definitions and verifies experiment integrity. S6-03 will execute deterministic evaluation checks. S6-02 does not execute checks, measure, score, report, integrate MCP, or certify the hero.
 
 ## Deterministic evidence
 Commands, file/path/dependency/JSON checks, changed paths, and adapter telemetry are evidence. Missing evidence is `unavailable`, never invented or estimated. No LLM-as-judge scoring is allowed.
