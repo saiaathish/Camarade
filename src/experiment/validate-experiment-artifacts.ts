@@ -7,6 +7,7 @@ import {
   EVALUATION_SEAL_UNAVAILABLE_REASON,
   type EvaluationSealReference,
 } from "../evaluation/evaluation-seal-types.js";
+import { validateEvaluationExecutionArtifacts } from "../evaluation/validate-evaluation-execution-artifacts.js";
 import { isPathWithin } from "./git.js";
 import { FairExperimentRunError } from "./experiment-errors.js";
 import type {
@@ -577,6 +578,7 @@ async function validatePreparedPaths(result: FairExperimentResult, root: string,
 }
 
 export async function validateExperimentArtifacts(result: FairExperimentResult): Promise<void> {
+  await validateEvaluationExecutionArtifacts(result);
   const prepared = result.prepared;
   const directory = prepared?.layout.experimentDirectory;
   if (!directory || !isAbsolute(directory)) fail("Prepared experiment directory must be absolute.");

@@ -33,6 +33,7 @@ export interface CreateRunLayoutOptions {
   controllerRoot: string;
   comparisonId: string;
 }
+export function resolveExperimentRunDirectory(controllerRoot:string, comparisonId:string):string { return resolve(controllerRoot,".camarade","runs",comparisonId); }
 
 export class RunLayoutError extends Error {
   readonly rollbackError?: unknown;

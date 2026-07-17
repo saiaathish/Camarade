@@ -1,23 +1,18 @@
 # Stage 6 MCP contract
 
-The public tool is `camarade.measure_experiment`. It measures an existing Stage 5 comparison and never reruns Codex.
+Server version: `1.2.0`.
 
-```json
-{
-  "comparison_id": "hero-rate-limit-001",
-  "experiment_directory": "/absolute/controller/.camarade/runs/hero-rate-limit-001",
-  "evaluation_definition_path": "/absolute/evaluations/hero-rate-limit-v1/evaluation.json",
-  "execution_confirmation": {
-    "confirmed": true,
-    "statement": "I authorize Camarade to execute the declared evaluation commands."
-  }
-}
+Tool: `camarade.measure_experiment`.
+
+Request uses exactly one locator: `comparison_id` with `controller_root`, or `experiment_directory`. It also requires `confirmation.confirmed: true` and the exact statement: `I authorize Camarade to measure this completed experiment.` Unknown fields, external evaluation paths, hidden assets, commands, and scoring overrides are rejected.
+
+The tool reads a completed Stage 5 experiment and exposes persisted Stage 6 scoring artifacts with experiment-relative paths. Limited and invalid results return `outcome: null` and are never benchmark-eligible. Existing Stage 6 artifacts are never overwritten. Errors use stable `STAGE6_*` codes and omit private paths, contents, stdout, stderr, and environment values.
+
+CLI equivalent:
+
+```text
+camarade measure --comparison ID --controller-root PATH --confirm-measurement
+camarade measure --experiment-directory PATH --confirm-measurement
 ```
 
-`experiment_directory` may be replaced by `controller_root`; when both are omitted, the tool resolves `.camarade/runs/<comparison_id>` below the server working directory. Unknown properties, relative paths, malformed IDs, missing confirmation, and altered confirmation text are rejected before any evaluation command runs.
-
-The compact success response includes status, outcome, eligibility, both scores, delta, material overrides, limitations, and paths to `comparison.json`, `REPORT.md`, `evidence-index.json`, and `integrity.json`. Logs are not returned inline.
-
-Valid results may return `win`, `tie`, or `regression`. Limited and invalid results always return `outcome: null` and `official_benchmark_eligible: false`.
-
-Run `npm run verify:stage6` for schema/discovery proof and `npm run certify:stage6` for a real client-to-server Stage 4 → Stage 5 → Stage 6 fixture measurement with artifact readback.
+This interface does not certify Stage 6 or claim real benchmark results.

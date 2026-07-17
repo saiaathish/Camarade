@@ -1,39 +1,6 @@
-import { access } from "node:fs/promises";
 import path from "node:path";
+import { access } from "node:fs/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { EVALUATION_EXECUTION_CONFIRMATION } from "../src/evaluation/measure-experiment.js";
-
-const root = path.resolve(import.meta.dirname, "..");
-const entry = path.resolve(root, "dist/src/mcp/start-server.js");
-
-async function main(): Promise<void> {
-  await access(entry);
-  const client = new Client({ name: "camarade-stage-6-verifier", version: "1.0.0" });
-  const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: root, stderr: "pipe" });
-  try {
-    await client.connect(transport);
-    const tools = (await client.listTools()).tools;
-    const names = tools.map((tool) => tool.name).sort();
-    const expected = ["camarade.compile_task_context", "camarade.measure_experiment", "camarade.run_fair_experiment"];
-    if (JSON.stringify(names) !== JSON.stringify(expected)) throw new Error(`Unexpected tools: ${names.join(", ")}`);
-    const measure = tools.find((tool) => tool.name === "camarade.measure_experiment");
-    if (!measure?.inputSchema.required?.includes("execution_confirmation")) throw new Error("Stage 6 confirmation is not required by the protocol schema.");
-    const rejected = await client.callTool({ name: "camarade.measure_experiment", arguments: { comparison_id: "missing", evaluation_definition_path: "/tmp/missing.json" } });
-    if (!rejected.isError) throw new Error("Stage 6 accepted a request without execution confirmation.");
-    const malformed = await client.callTool({ name: "camarade.measure_experiment", arguments: { comparison_id: "missing", evaluation_definition_path: "/tmp/missing.json", execution_confirmation: { confirmed: true, statement: `${EVALUATION_EXECUTION_CONFIRMATION} altered` } } });
-    if (!malformed.isError) throw new Error("Stage 6 accepted a malformed confirmation statement.");
-    console.log("Stage 6 MCP verification: PASS");
-    console.log("Server: camarade 1.2.0");
-    console.log(`Tools: ${names.join(", ")}`);
-    console.log("Rejected requests executed no evaluation commands.");
-  } finally {
-    await client.close().catch(() => undefined);
-    await transport.close().catch(() => undefined);
-  }
-}
-
-main().catch((error) => {
-  console.error(`Stage 6 MCP verification failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+const root=path.resolve(import.meta.dirname,".."); const entry=path.resolve(root,"dist/src/mcp/start-server.js");
+async function main(){await access(entry); const c=new Client({name:"stage6",version:"1"}); const t=new StdioClientTransport({command:process.execPath,args:[entry],cwd:root,stderr:"pipe"}); try{await c.connect(t); const listed=await c.listTools(); const names=listed.tools.map(x=>x.name).sort(); if(names.length!==3||JSON.stringify(names)!==JSON.stringify(["camarade.compile_task_context","camarade.measure_experiment","camarade.run_fair_experiment"])) throw new Error("tool discovery mismatch"); const tool=listed.tools.find(x=>x.name==="camarade.measure_experiment"); if(!tool||JSON.stringify(tool.inputSchema).includes("evaluation_definition_path")) throw new Error("unsafe input exposed"); for(const args of [{confirmation:{confirmed:true,statement:"I authorize Camarade to measure this completed experiment."}},{experiment_directory:"/tmp/x",confirmation:{confirmed:true,statement:"wrong"}},{experiment_directory:"/tmp/x",confirmation:{confirmed:true,statement:"I authorize Camarade to measure this completed experiment."},unknown_field:true}]){const response=await c.callTool({name:"camarade.measure_experiment",arguments:args}); if(!response.isError) throw new Error("malformed request accepted");} console.log("Stage 6 MCP verification: PASS"); console.log("Server: camarade 1.2.0"); console.log("Tools: 3");} finally {await c.close().catch(()=>undefined); await t.close().catch(()=>undefined);}} main().catch(()=>{console.error("Stage 6 MCP verification failed.");process.exitCode=1;});

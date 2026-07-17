@@ -1,6 +1,6 @@
 # Camarade
 
-Camarade is a local MCP server for auditable AI-coding context experiments. Stage 4 compiles task-specific context, Stage 5 runs matched baseline and Camarade conditions, and Stage 6 measures a completed experiment with a sealed deterministic evaluation definition. Only valid, fully measurable Stage 6 comparisons can return a win, tie, or regression; invalid and limited experiments return no benchmark winner.
+Camarade is a local MCP server and task-specific context compiler. Its primary Stage 4 interface turns Stage 3 repository intelligence into a minimal, evidence-backed context contract for one coding task. The independent Stage 2 local comparison slice remains available: it creates isolated condition worktrees, executes the selected adapter, runs configured validations, and preserves deterministic raw evidence. Neither flow assigns a score or comparative winner.
 
 Fixture adapter results are simulated and are not benchmark evidence.
 
@@ -26,7 +26,7 @@ npm run build
 node dist/src/mcp/start-server.js
 ```
 
-MCP clients normally launch the local stdio server. The tools are `camarade.compile_task_context`, `camarade.run_fair_experiment`, and `camarade.measure_experiment`. For built-server protocol checks, run `npm run verify:mcp`; for the complete Stage 4 → Stage 5 → Stage 6 protocol proof, run `npm run certify:stage6`. See the [MCP server guide](docs/mcp-server.md) for the contracts and client configuration.
+MCP clients normally launch the local stdio server. The tool is `camarade.compile_task_context`. For a built-server protocol check, run `npm run verify:mcp`. See the [MCP server guide](docs/mcp-server.md) for the contract and client configuration.
 
 ## Available scripts
 
@@ -36,24 +36,8 @@ MCP clients normally launch the local stdio server. The tools are `camarade.comp
 | Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
 | Test | `npm test` | Runs the Vitest suite once. |
 | Test watch | `npm run test:watch` | Runs Vitest in watch mode. |
-| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, `evaluate`, and `measure`. |
+| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, and `evaluate`. |
 | Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |
-| Stage 6 verification | `npm run verify:stage6` | Discovers all three MCP tools and proves malformed or unconfirmed measurement calls are rejected. |
-| Stage 6 certification | `npm run certify:stage6` | Runs compilation, a fake-Codex fair experiment, deterministic measurement, artifact readback, and cleanup through a real MCP client. |
-
-## Measure a completed experiment
-
-Stage 6 reads a completed Stage 5 comparison, verifies its sealed definition and artifact hashes, reconstructs both candidate implementations in disposable worktrees, applies identical hidden assets, and runs only the predeclared checks. The CLI is a development wrapper over the same application service used by MCP:
-
-```sh
-npm run camarade -- measure \
-  --comparison hero-rate-limit-001 \
-  --evaluation /absolute/path/evaluation.json \
-  --controller-root /absolute/controller/root \
-  --confirm-evaluation-execution
-```
-
-The checked-in [hero evaluation definition](evaluations/hero-rate-limit-v1/evaluation.json) matches the actual hero fixture. Its hidden reset-window test is sealed before Stage 5 execution and enters only the disposable Stage 6 sandboxes.
 
 ## Product website
 
@@ -111,9 +95,6 @@ The evaluation prints the simulation label, comparison ID, evidence path, and su
 - [Task context compiler guide](docs/context-compiler.md)
 - [Stage 4 technical reference](docs/stage-4/task-context-compiler.md)
 - [Stage 2 vertical slice](docs/stage-2/vertical-slice.md)
-- [Stage 6 evaluation methodology](docs/stage-6/evaluation-methodology.md)
-- [Stage 6 artifact contract](docs/stage-6/artifact-contract.md)
-- [Stage 6 MCP contract](docs/stage-6/mcp-contract.md)
 - [2026-07-14 build log](docs/build-log/2026-07-14.md)
 - [Stage 1 product thesis](docs/stage-1/product-thesis.md)
 - [Stage 1 product contract](docs/stage-1/product-contract.md)

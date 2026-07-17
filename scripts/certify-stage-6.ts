@@ -1,84 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import path from "node:path";
+import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { EVALUATION_EXECUTION_CONFIRMATION } from "../src/evaluation/measure-experiment.js";
-
-const root = path.resolve(import.meta.dirname, "..");
-const entry = path.resolve(root, "dist/src/mcp/start-server.js");
-const task = "Add rate limiting to the public search API";
-
-function record(value: unknown, label: string): Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`${label} is not an object.`);
-  return value as Record<string, unknown>;
-}
-
-async function main(): Promise<void> {
-  await access(entry);
-  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "camarade-stage6-certification-"));
-  const repository = path.join(temporaryRoot, "repository");
-  const controller = path.join(temporaryRoot, "controller");
-  const evaluation = path.join(temporaryRoot, "evaluation");
-  let compilationRoot: string | undefined;
-  const client = new Client({ name: "camarade-stage-6-certifier", version: "1.0.0" });
-  const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: root, stderr: "pipe" });
-  try {
-    await Promise.all([
-      cp(path.resolve(root, "examples/hero-fixture-template"), repository, { recursive: true }),
-      cp(path.resolve(root, "evaluations/hero-rate-limit-v1"), evaluation, { recursive: true }),
-      mkdir(controller, { recursive: true })
-    ]);
-    const fakeCodex = path.resolve(root, "tests/fixtures/fake-codex.mjs");
-    await writeFile(path.join(repository, "camarade.run.yaml"), `validationCommands:\n  - npm test\ntimeoutSeconds: 300\nexperiment:\n  instruction_mode: augmentation\n  execution_order: baseline-first\n  codex:\n    executable: ${JSON.stringify(process.execPath)}\n    timeout_seconds: 30\n    arguments:\n      - ${JSON.stringify(fakeCodex)}\n      - --model\n      - fake-codex-model\n    environment_allowlist: []\n`);
-    execFileSync("git", ["init", "-q"], { cwd: repository });
-    execFileSync("git", ["config", "user.name", "Camarade Certification"], { cwd: repository });
-    execFileSync("git", ["config", "user.email", "certification@example.invalid"], { cwd: repository });
-    execFileSync("git", ["add", "-A"], { cwd: repository });
-    execFileSync("git", ["commit", "-qm", "certification fixture"], { cwd: repository });
-
-    await client.connect(transport);
-    const names = (await client.listTools()).tools.map((tool) => tool.name).sort();
-    if (names.join(",") !== "camarade.compile_task_context,camarade.measure_experiment,camarade.run_fair_experiment") throw new Error("All three MCP tools were not discovered.");
-
-    const compile = await client.callTool({ name: "camarade.compile_task_context", arguments: { repository_root: repository, task } });
-    if (compile.isError) throw new Error("Stage 4 tool failed during Stage 6 certification.");
-    compilationRoot = String(record(compile.structuredContent, "compile response").controller_root);
-
-    const comparisonId = "hero-rate-limit-stage6-certification";
-    const definitionPath = path.join(evaluation, "evaluation.json");
-    const run = await client.callTool({ name: "camarade.run_fair_experiment", arguments: { repository_root: repository, task, controller_root: controller, experiment_id: comparisonId, evaluation_definition_path: definitionPath, confirm_execution: true } });
-    if (run.isError) throw new Error(`Stage 5 tool failed during Stage 6 certification: ${JSON.stringify(run.content)}`);
-    const runPayload = record(run.structuredContent, "run response");
-    if (runPayload.experiment_id !== comparisonId || record(runPayload.cleanup, "cleanup").succeeded !== true) throw new Error("Stage 5 evidence did not match the requested comparison or cleanup failed.");
-
-    const experimentDirectory = path.join(controller, ".camarade", "runs", comparisonId);
-    const measure = await client.callTool({ name: "camarade.measure_experiment", arguments: { comparison_id: comparisonId, experiment_directory: experimentDirectory, evaluation_definition_path: definitionPath, execution_confirmation: { confirmed: true, statement: EVALUATION_EXECUTION_CONFIRMATION } } });
-    if (measure.isError) throw new Error(`Stage 6 tool failed during certification: ${JSON.stringify(measure.content)}`);
-    const measured = record(measure.structuredContent, "measurement response");
-    if (measured.status !== "valid" || measured.outcome !== "tie" || measured.official_benchmark_eligible !== true) throw new Error(`Unexpected certified measurement: ${JSON.stringify(measured)}`);
-    const artifacts = record(measured.artifacts, "measurement artifacts");
-    for (const artifact of [artifacts.comparison, artifacts.report, artifacts.evidence_index, artifacts.integrity]) await access(String(artifact));
-    const comparison = JSON.parse(await readFile(String(artifacts.comparison), "utf8")) as Record<string, unknown>;
-    if (comparison.comparisonId !== comparisonId || comparison.outcome !== measured.outcome) throw new Error("Saved comparison does not match the MCP result.");
-    const report = await readFile(String(artifacts.report), "utf8");
-    if (!report.includes("No LLM-as-judge score was used")) throw new Error("Report is missing the deterministic-evidence statement.");
-    console.log("Stage 6 certification: PASS");
-    console.log(`Experiment: ${comparisonId}`);
-    console.log("Status: valid");
-    console.log("Outcome: tie");
-    console.log(`Comparison: ${String(artifacts.comparison)}`);
-    console.log(`Report: ${String(artifacts.report)}`);
-  } finally {
-    await client.close().catch(() => undefined);
-    await transport.close().catch(() => undefined);
-    if (compilationRoot !== undefined && path.basename(compilationRoot).startsWith("camarade-controller-")) await rm(compilationRoot, { recursive: true, force: true });
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-}
-
-main().catch((error) => {
-  console.error(`Stage 6 certification failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+import { createHeroFixture } from "./create-hero-fixture.js";
+import { validateScoringArtifacts } from "../src/evaluation/scoring-artifacts.js";
+const root=resolve(import.meta.dirname,".."),entry=resolve(root,"dist/src/mcp/start-server.js"),confirmation={confirmed:true,statement:"I authorize Camarade to measure this completed experiment."};
+function p(r:any){const x=r.structuredContent??JSON.parse(r.content?.[0]?.text??"{}");if(r.isError)throw new Error(`STAGE6_${x.code??"CERTIFICATION_FAILED"}`);return x;}
+async function main(){let owner:string|undefined,controller:string|undefined,c:Client|undefined,t:StdioClientTransport|undefined;try{owner=await mkdtemp(join(tmpdir(),"camarade-stage6-cert-"));const fixturePath=join(owner,"hero"),fakePath=join(fixturePath,"fake-codex.mjs");const fake="#!/usr/bin/env node\nimport fs from 'node:fs';\nif(process.argv.includes('--version')){process.stdout.write('fake-codex 1.0.0\\n');process.exit(0);}\nconst i=process.argv.indexOf('--cd'),d=i>=0?process.argv[i+1]:process.cwd();fs.writeFileSync(d+'/fake-codex-output.txt','fake\\n');console.log(JSON.stringify({type:'result',usage:{input_tokens:1,output_tokens:1}}));\n";const yaml=`validationCommands:\n  - node -e "process.exit(0)"\ntimeoutSeconds: 20\nexperiment:\n  instruction_mode: augmentation\n  execution_order: baseline-first\n  codex:\n    executable: ${process.execPath}\n    timeout_seconds: 20\n    arguments:\n      - ${fakePath}\n      - --model\n      - fake-codex-model\n    environment_allowlist: []\n`;const fixture=await createHeroFixture(fixturePath,{extraFiles:[{relativePath:"fake-codex.mjs",contents:fake,executable:true},{relativePath:"camarade.run.yaml",contents:yaml}]});controller=await mkdtemp(join(tmpdir(),"camarade-stage6-controller-"));c=new Client({name:"stage6-certifier",version:"1"});t=new StdioClientTransport({command:process.execPath,args:[entry],cwd:root,stderr:"pipe"});await c.connect(t);if((await c.listTools()).tools.length!==3)throw new Error("STAGE6_TOOL_DISCOVERY_INVALID");const task="Add rate limiting to the public search API";p(await c.callTool({name:"camarade.compile_task_context",arguments:{repository_root:fixture.fixturePath,task}}));const run=p(await c.callTool({name:"camarade.run_fair_experiment",arguments:{repository_root:fixture.fixturePath,task,confirm_execution:true,controller_root:controller}}));const id=run.experiment_id;const controllerRoot=run.artifacts.experiment_directory;const experimentDirectory=resolve(controllerRoot,".camarade","runs",id);const measured=p(await c.callTool({name:"camarade.measure_experiment",arguments:{comparison_id:id,controller_root:controllerRoot,confirmation}}));if(measured.comparisonId!==id)throw new Error("STAGE6_COMPARISON_ID_MISMATCH");await validateScoringArtifacts(experimentDirectory);const comparison=JSON.parse(await readFile(join(experimentDirectory,"scoring","comparison.json"),"utf8"));if(measured.baselineTotal!==comparison.baselineTotal||measured.camaradeTotal!==comparison.camaradeTotal||measured.simulationLabel!=="simulation")throw new Error("STAGE6_CANONICAL_READBACK_MISMATCH");process.stdout.write(JSON.stringify({certification:"stage6",status:"pass",serverVersion:"1.2.0",toolsDiscovered:3,comparisonId:id,experimentStatus:measured.status,outcome:measured.outcome,simulation:true,realModelExecuted:false,networkUsed:false,artifactValidation:"pass",cleanup:"pass"})+"\n");}catch(e){process.stderr.write(`${e instanceof Error&&/^STAGE6_/.test(e.message)?e.message:"STAGE6_CERTIFICATION_FAILED"}\n`);process.exitCode=1;}finally{await c?.close().catch(()=>{});await t?.close().catch(()=>{});if(owner)await rm(owner,{recursive:true,force:true});if(controller)await rm(controller,{recursive:true,force:true});}}main();
