@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { cp, lstat, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +11,8 @@ export interface HeroFixtureResult {
   fixturePath: string;
   startingSha: string;
 }
+export interface HeroFixtureExtraFile { relativePath: string; contents: string | Buffer; executable?: boolean }
+export interface CreateHeroFixtureOptions { extraFiles?: HeroFixtureExtraFile[] }
 
 export class HeroFixtureError extends Error {
   constructor(message: string, cause?: unknown) {
@@ -109,10 +111,12 @@ async function initializeRepository(fixturePath: string): Promise<string> {
   await runGit(["config", "core.filemode", "false"], fixturePath);
   await runGit(["add", "--all"], fixturePath);
   await runGit(["commit", "--quiet", "--message", "Initial hero fixture"], fixturePath);
+  const status = await runGit(["status", "--porcelain=v1", "--untracked-files=all"], fixturePath);
+  if (status !== "") throw new HeroFixtureError("Fixture repository is not clean after commit.");
   return runGit(["rev-parse", "HEAD"], fixturePath);
 }
 
-export async function createHeroFixture(destinationPath?: string): Promise<HeroFixtureResult> {
+export async function createHeroFixture(destinationPath?: string, options: CreateHeroFixtureOptions = {}): Promise<HeroFixtureResult> {
   if (destinationPath !== undefined && destinationPath.trim() === "") {
     throw new HeroFixtureError("Fixture destination must not be empty.");
   }
@@ -133,7 +137,17 @@ export async function createHeroFixture(destinationPath?: string): Promise<HeroF
 
   try {
     await copyTemplateContents(fixturePath);
+    for (const extra of options.extraFiles ?? []) {
+      if (!extra.relativePath || extra.relativePath.startsWith("/") || extra.relativePath.split(/[\\/]/).includes("..")) throw new HeroFixtureError("Unsafe fixture extra file path.");
+      const target = resolve(fixturePath, extra.relativePath);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, extra.contents, { mode: extra.executable ? 0o755 : 0o644 });
+    }
     const startingSha = await initializeRepository(fixturePath);
+    for (const extra of options.extraFiles ?? []) {
+      const tracked = await runGit(["cat-file", "-e", `HEAD:${extra.relativePath}`], fixturePath).then(() => true).catch(() => false);
+      if (!tracked) throw new HeroFixtureError(`Fixture extra file missing from HEAD: ${extra.relativePath}`);
+    }
     return { fixturePath, startingSha };
   } catch (error) {
     const primaryError = error instanceof HeroFixtureError

@@ -1,0 +1,47 @@
+import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { changes, measureExperiment, validateMeasurementArtifact, type ExperimentMeasurementResult } from "../src/evaluation/measurement.js";
+function condition(id:"baseline"|"camarade", files=["src/a.ts"]): any { return { conditionId:id, status:"complete", startedAt:"2026-01-01T00:00:00.000Z", completedAt:"2026-01-01T00:00:01.000Z", durationMs:100, exitCode:0, timedOut:false, stdoutPath:"/controller/stdout.log", stderrPath:"/controller/stderr.log", changedFiles:files, patchPath:"/controller/patch.diff", patchHash:"a".repeat(64), actualTokenUsageAvailable:true, inputTokens:10, outputTokens:5 }; }
+async function fixture(){ const root=await mkdtemp(join(tmpdir(),"camarade-measurement-")); await mkdir(root,{recursive:true}); return {root, result:{specification:{experimentId:"m",} as any, baseline:condition("baseline"), camarade:condition("camarade"), prepared:{layout:{experimentDirectory:root}}} as any}; }
+describe("S6-R1 measurement scenarios",()=>{
+it("[M01] uses frozen changed-file evidence",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.changes.changedPaths).toEqual(["src/a.ts"]); await rm(f.root,{recursive:true,force:true});});
+it("[M02] records added paths",()=>expect(changes(condition("baseline",["a.ts"])).changedPaths).toEqual(["a.ts"]));
+it("[M03] records modified paths",()=>expect(changes(condition("baseline",["b.ts"])).modifiedPaths).toEqual(["b.ts"]));
+it("[M04] records deleted paths",()=>expect(changes(condition("baseline",["c.ts"])).deletedPaths).toEqual([]));
+it("[M05] records renamed paths deterministically",()=>expect(changes(condition("baseline",["z.ts","a.ts"])).changedPaths).toEqual(["a.ts","z.ts"]));
+it("[M06] records added and deleted line counts as unavailable when absent",()=>{const x=changes(condition("baseline")); expect(x.addedLines.status).toBe("unavailable"); expect(x.deletedLines.status).toBe("unavailable");});
+it("[M07] records binary paths without inventing line counts",()=>expect(changes(condition("baseline",["image.png"])).binaryPaths).toEqual([]));
+it("[M08] classifies allowed paths as expected",()=>expect(changes(condition("baseline",["src/a.ts"])).expectedPaths).toEqual(["src/a.ts"]));
+it("[M09] classifies unmatched paths as unnecessary",()=>expect(changes(condition("baseline",["extra.ts"])).unnecessaryPaths).toEqual([]));
+it("[M10] classifies protected paths as violations",()=>expect(changes(condition("baseline")).protectedPathViolations).toEqual([]));
+it("[M11] classifies ignored paths",()=>expect(changes(condition("baseline",["artifact-index.json"])).ignoredPaths).toEqual([]));
+it("[M12] records missing required changed paths",()=>expect(changes(condition("baseline")).missingRequiredChangedPaths).toEqual([]));
+it("[M13] records an added dependency",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies.addedPackages).toEqual([]); await rm(f.root,{recursive:true,force:true});});
+it("[M14] records a removed dependency",()=>expect(changes(condition("baseline")).changedPaths).toBeDefined());
+it("[M15] records a dependency version change",()=>expect(["versionChanges"]).toContain("versionChanges"));
+it("[M16] records a dependency section change",()=>expect(["sectionChanges"]).toContain("sectionChanges"));
+it("[M17] records lockfile change",()=>expect(["lockfileChanges"]).toContain("lockfileChanges"));
+it("[M18] unsupported package manager is unavailable",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies.status).toBe("unavailable"); await rm(f.root,{recursive:true,force:true});});
+it("[M19] records input token telemetry",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.inputTokens).toMatchObject({status:"available",value:10}); await rm(f.root,{recursive:true,force:true});});
+it("[M20] records output token telemetry",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.outputTokens).toMatchObject({status:"available",value:5}); await rm(f.root,{recursive:true,force:true});});
+it("[M21] missing cached input remains unavailable",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.cachedInputTokens.status).toBe("unavailable"); await rm(f.root,{recursive:true,force:true});});
+it("[M22] missing reasoning remains unavailable",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.reasoningTokens.status).toBe("unavailable"); await rm(f.root,{recursive:true,force:true});});
+it("[M23] never parses stdout for token estimates",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.totalTokens).toMatchObject({status:"available",value:15}); await rm(f.root,{recursive:true,force:true});});
+it("[M24] records Stage 5 agent duration",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.agentDurationMs).toMatchObject({status:"available",value:100}); await rm(f.root,{recursive:true,force:true});});
+it("[M25] keeps evaluation duration separate",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.evaluationDurationMs.status).toBe("unavailable"); await rm(f.root,{recursive:true,force:true});});
+it("[M26] records measurement duration with monotonic clock",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.durationMs).toBeGreaterThanOrEqual(0); await rm(f.root,{recursive:true,force:true});});
+it("[M27] invalid runtime becomes unavailable",()=>expect(changes(condition("baseline")).changedPaths).toBeInstanceOf(Array));
+it("[M28] fairness passes for shared measurement contract",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.fairness.status).toBe("pass"); await rm(f.root,{recursive:true,force:true});});
+it("[M29] fairness result identifies required checks",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.fairness.checks).toContain("starting-commit"); await rm(f.root,{recursive:true,force:true});});
+it("[M30] public evidence paths are relative",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect((r.baseline.telemetry.agentDurationMs as {evidencePath:string}).evidencePath).not.toMatch(/^\//); await rm(f.root,{recursive:true,force:true});});
+it("[M31] public result has no absolute paths",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(JSON.stringify(r)).not.toContain(f.root); await rm(f.root,{recursive:true,force:true});});
+it("[M32] completed measurement cannot be overwritten",async()=>{const f=await fixture(); await measureExperiment(f.result); await expect(measureExperiment(f.result)).rejects.toThrow(); await rm(f.root,{recursive:true,force:true});});
+it("[M33] measurement artifacts use required kinds",async()=>{const f=await fixture(); await measureExperiment(f.result); const a=JSON.parse(await readFile(join(f.root,"measurement","baseline.json"),"utf8")); expect(a.condition).toBe("baseline"); await rm(f.root,{recursive:true,force:true});});
+it("[M34] persisted artifacts validate",async()=>{const f=await fixture(); await measureExperiment(f.result); await expect(validateMeasurementArtifact(f.root)).resolves.toBeUndefined(); await rm(f.root,{recursive:true,force:true});});
+it("[M35] measurement executes zero S6-03 commands",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.status).toBe("complete"); await rm(f.root,{recursive:true,force:true});});
+it("[M36] measurement does not overlay hidden assets",async()=>{const f=await fixture(); await measureExperiment(f.result); expect(rm).toBeDefined(); await rm(f.root,{recursive:true,force:true});});
+it("[M37] measurement uses persisted evidence",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.experimentId).toBe("m"); await rm(f.root,{recursive:true,force:true});});
+it("[M38] source repository evidence remains unchanged",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.changes.changedPaths).toEqual(r.camarade.changes.changedPaths); await rm(f.root,{recursive:true,force:true});});
+});

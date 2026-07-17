@@ -2,7 +2,7 @@ import { isAbsolute } from "node:path";
 import type { FairExperimentRequest, ValidatedFairExperimentRequest } from "./experiment-types.js";
 import { ExperimentContractError } from "./experiment-errors.js";
 import { normalizeTask } from "../context/normalize-task.js";
-const allowed = new Set(["repositoryPath", "task", "controllerRoot", "contextBudget", "experimentId"]);
+const allowed = new Set(["repositoryPath", "task", "controllerRoot", "contextBudget", "experimentId", "evaluationDefinitionPath"]);
 const fail = (message:string):never => { throw new ExperimentContractError(message,"EXPERIMENT_REQUEST_INVALID","request-validation"); };
 export function validateFairExperimentRequest(request: FairExperimentRequest): ValidatedFairExperimentRequest {
   if (typeof request !== "object" || request === null || Array.isArray(request)) return fail("Request must be an object.");
@@ -17,5 +17,6 @@ export function validateFairExperimentRequest(request: FairExperimentRequest): V
   if (value.controllerRoot !== undefined && (typeof value.controllerRoot !== "string" || value.controllerRoot.trim()==="" || value.controllerRoot.includes("\0") || !isAbsolute(value.controllerRoot))) return fail("controllerRoot must be absolute when provided.");
   if (value.contextBudget !== undefined && (typeof value.contextBudget !== "number" || !Number.isSafeInteger(value.contextBudget) || value.contextBudget <= 0)) return fail("contextBudget must be a positive safe integer.");
   if (value.experimentId !== undefined && (typeof value.experimentId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value.experimentId) || value.experimentId === "." || value.experimentId === "..")) return fail("experimentId is invalid.");
-  return { repositoryPath, task, ...(value.controllerRoot===undefined?{}:{controllerRoot:value.controllerRoot as string}), ...(value.contextBudget===undefined?{}:{contextBudget:value.contextBudget as number}), ...(value.experimentId===undefined?{}:{experimentId:value.experimentId as string}) };
+  if (value.evaluationDefinitionPath !== undefined && (typeof value.evaluationDefinitionPath !== "string" || value.evaluationDefinitionPath.trim()==="" || value.evaluationDefinitionPath.includes("\0") || !isAbsolute(value.evaluationDefinitionPath))) return fail("evaluationDefinitionPath must be an absolute, non-empty path without null bytes.");
+  return { repositoryPath, task, ...(value.controllerRoot===undefined?{}:{controllerRoot:value.controllerRoot as string}), ...(value.contextBudget===undefined?{}:{contextBudget:value.contextBudget as number}), ...(value.experimentId===undefined?{}:{experimentId:value.experimentId as string}), ...(value.evaluationDefinitionPath===undefined?{}:{evaluationDefinitionPath:value.evaluationDefinitionPath as string}) };
 }

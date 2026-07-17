@@ -1,0 +1,9 @@
+export const EVALUATION_SEAL_VERSION = 1 as const;
+export const EVALUATION_SEAL_UNAVAILABLE_REASON = "EVALUATION_DEFINITION_NOT_PROVIDED" as const;
+export interface EvaluationHiddenAssetSeal { relativePath:string; artifactRelativePath:string; sha256:string; byteLength:number; }
+export interface SealedEvaluationSealReference { status:"sealed"; sealVersion:1; definitionId:string; definitionVersion:1; definitionHash:string; hiddenAssetsHash:string; sealHash:string; sealedAt:string; sealManifestRelativePath:string; definitionRelativePath:string; }
+export interface UnavailableEvaluationSealReference { status:"unavailable"; sealVersion:1; unavailableReason:typeof EVALUATION_SEAL_UNAVAILABLE_REASON; sealHash:string; recordedAt:string; sealManifestRelativePath:string; }
+export type EvaluationSealReference = SealedEvaluationSealReference | UnavailableEvaluationSealReference;
+export interface EvaluationSealManifest { sealVersion:1; experimentId:string; status:"sealed"|"unavailable"; sealHash:string; sealManifestRelativePath:string; evaluationTaskHash?:string; experimentTaskHash?:string; normalizedTaskHash?:string; definitionId?:string; definitionVersion?:1; definitionHash?:string; definitionRelativePath?:string; hiddenAssetsHash?:string; hiddenAssets:EvaluationHiddenAssetSeal[]; sealedAt?:string; recordedAt?:string; unavailableReason?:typeof EVALUATION_SEAL_UNAVAILABLE_REASON; }
+export interface PreparedEvaluationSealSource { status:"sealed"|"unavailable"; evaluationDefinitionPath?:string; definition?:import("./evaluation-definition-schema.js").EvaluationDefinition; definitionHash?:string; sourceDefinitionPath?:string; evaluationTaskHash?:string; experimentTaskHash:string; normalizedTaskHash:string; hiddenAssets:EvaluationHiddenAssetSeal[]; hiddenAssetSources:Map<string,string>; }
+export interface PublishedEvaluationSeal { reference:EvaluationSealReference; manifest:EvaluationSealManifest; sealDirectory:string; }

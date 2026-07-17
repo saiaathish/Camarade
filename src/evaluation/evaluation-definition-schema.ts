@@ -1,0 +1,54 @@
+import { z } from "zod/v3";
+import { EVALUATION_DEFINITION_VERSION, EVALUATION_RULE_SEVERITIES, STAGE_6_TIE_TOLERANCE, SUPPORTED_PACKAGE_MANAGERS, SUPPORTED_STRUCTURED_REPORT_FORMATS } from "./evaluation-types.js";
+import { EvaluationDefinitionError } from "./evaluation-errors.js";
+
+const id = z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/).refine(v => !v.includes("\0"));
+const nonblank = (max: number) => z.string().trim().min(1).max(max).refine(v => !v.includes("\0"));
+const safePath = z.string().trim().min(1).refine(v => !v.includes("\0") && !v.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(v) && !v.includes("\\") && !v.split("/").includes(".."));
+const globPath = safePath;
+const packageName = z.string().trim().min(1).regex(/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/).refine(v => !v.includes("\0"));
+const finitePositive = z.number().finite().positive();
+const jsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([z.null(), z.boolean(), z.number().finite(), z.string(), z.array(jsonValueSchema), z.record(jsonValueSchema)]));
+export { jsonValueSchema };
+const report = z.object({ format: z.enum(SUPPORTED_STRUCTURED_REPORT_FORMATS), path: safePath }).strict();
+const common = { id, type: z.string() };
+const successExitCodes = z.array(z.number().int().safe().min(0).max(255)).min(1).default([0]).refine(values => new Set(values).size === values.length, "duplicate successExitCodes");
+const command = z.object({ ...common, type: z.literal("command"), command: nonblank(4096), timeoutSeconds: z.number().int().safe().positive().max(86400).default(1800), successExitCodes, structuredReport: report.optional() }).strict();
+const file = (type: "file-exists" | "file-absent") => z.object({ ...common, type: z.literal(type), path: safePath }).strict();
+const textCheck = (type: "text-present" | "text-absent") => z.object({ ...common, type: z.literal(type), path: safePath, text: nonblank(16384) }).strict();
+const pathCheck = (type: "path-unchanged" | "path-changed") => z.object({ ...common, type: z.literal(type), path: globPath }).strict();
+const dependency = (type: "dependency-present" | "dependency-absent") => z.object({ ...common, type: z.literal(type), package: packageName }).strict();
+const checkVariants = [command, file("file-exists"), file("file-absent"), textCheck("text-present"), textCheck("text-absent"), pathCheck("path-unchanged"), pathCheck("path-changed"), dependency("dependency-present"), dependency("dependency-absent"), z.object({ ...common, type: z.literal("json-value"), path: safePath, pointer: z.string().refine(v => v === "" || v.startsWith("/")), equals: jsonValueSchema }).strict()] as const;
+const baseChecks = z.discriminatedUnion("type", checkVariants);
+export const evaluationCheckSchema = baseChecks;
+export type EvaluationCheck = z.infer<typeof evaluationCheckSchema>;
+const weighted = { weight: finitePositive, mandatory: z.boolean() };
+const weightedVariants = checkVariants.map(schema => schema.extend(weighted).strict()) as unknown as [typeof checkVariants[0], ...typeof checkVariants[number][]];
+export const correctnessCheckSchema = z.discriminatedUnion("type", weightedVariants);
+export type CorrectnessCheck = z.infer<typeof correctnessCheckSchema>;
+export const evaluationRequirementSchema = z.object({ id, description: nonblank(1000), ...weighted, checks: z.array(baseChecks).min(1) }).strict();
+export type EvaluationRequirement = z.infer<typeof evaluationRequirementSchema>;
+export const evaluationRuleSchema = z.object({ id, description: nonblank(1000), weight: finitePositive, severity: z.enum(EVALUATION_RULE_SEVERITIES), checks: z.array(baseChecks).min(1) }).strict();
+export type EvaluationRule = z.infer<typeof evaluationRuleSchema>;
+const uniqueStrings = (schema: z.ZodType<string>) => z.array(schema).superRefine((v, ctx) => { if (new Set(v).size !== v.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "duplicate values" }); });
+const policy = z.object({ allowedPaths: z.array(globPath).min(1), protectedPaths: z.array(globPath).min(1), ignoredPaths: z.array(globPath), requiredChangedPaths: z.array(globPath) }).strict();
+const dependencyPolicy = z.object({ packageManager: z.enum(SUPPORTED_PACKAGE_MANAGERS), allowedAddedPackages: z.array(packageName), forbiddenPackages: z.array(packageName), allowUnlistedAdditions: z.boolean().default(false) }).strict();
+const telemetry = z.object({ requireTokens: z.boolean(), requireRuntime: z.boolean() }).strict();
+export const evaluationDefinitionSchema = z.object({ version: z.literal(EVALUATION_DEFINITION_VERSION), id, task: nonblank(10000), tieTolerance: z.object({ absoluteScorePoints: z.literal(STAGE_6_TIE_TOLERANCE) }).strict(), correctnessChecks: z.array(correctnessCheckSchema).min(1), requirements: z.array(evaluationRequirementSchema).min(1), rules: z.array(evaluationRuleSchema).min(1), changePolicy: policy, dependencyPolicy, telemetryPolicy: telemetry, hiddenAssets: z.array(safePath) }).strict();
+export type EvaluationDefinition = z.infer<typeof evaluationDefinitionSchema>;
+
+export function validateEvaluationDefinition(value: unknown): EvaluationDefinition {
+  const parsed = evaluationDefinitionSchema.safeParse(value);
+  if (!parsed.success) throw new EvaluationDefinitionError("Evaluation definition schema is invalid.", "INVALID_SCHEMA", undefined, parsed.error.issues.map(i => i.path.join(".") + ": " + i.message));
+  const d = parsed.data; const ids = new Map<string, string>(); const issues: string[] = [];
+  const addId = (value: string, where: string) => { const prior = ids.get(value); if (prior) issues.push(`duplicate ID '${value}' at ${where}; already used at ${prior}`); else ids.set(value, where); };
+  addId(d.id, "id"); d.correctnessChecks.forEach((c, i) => { addId(c.id, `correctnessChecks[${i}]`); if (c.type === "command" && new Set(c.successExitCodes).size !== c.successExitCodes.length) issues.push(`duplicate successExitCodes at correctnessChecks[${i}]`); });
+  d.requirements.forEach((r, i) => { addId(r.id, `requirements[${i}]`); r.checks.forEach((c, j) => addId(c.id, `requirements[${i}].checks[${j}]`)); });
+  d.rules.forEach((r, i) => { addId(r.id, `rules[${i}]`); r.checks.forEach((c, j) => addId(c.id, `rules[${i}].checks[${j}]`)); });
+  const dup = (field: string, values: string[]) => { if (new Set(values).size !== values.length) issues.push(`duplicate values in ${field}`); };
+  dup("allowedPaths", d.changePolicy.allowedPaths); dup("protectedPaths", d.changePolicy.protectedPaths); dup("ignoredPaths", d.changePolicy.ignoredPaths); dup("requiredChangedPaths", d.changePolicy.requiredChangedPaths); dup("allowedAddedPackages", d.dependencyPolicy.allowedAddedPackages); dup("forbiddenPackages", d.dependencyPolicy.forbiddenPackages); dup("hiddenAssets", d.hiddenAssets);
+  const conflict = (a: string, av: string[], b: string, bv: string[]) => av.filter(v => bv.includes(v)).forEach(v => issues.push(`conflict '${v}' between ${a} and ${b}`));
+  conflict("allowedPaths", d.changePolicy.allowedPaths, "protectedPaths", d.changePolicy.protectedPaths); conflict("requiredChangedPaths", d.changePolicy.requiredChangedPaths, "protectedPaths", d.changePolicy.protectedPaths); conflict("allowedAddedPackages", d.dependencyPolicy.allowedAddedPackages, "forbiddenPackages", d.dependencyPolicy.forbiddenPackages);
+  if (issues.length) throw new EvaluationDefinitionError("Evaluation definition semantics are invalid.", "INVALID_SEMANTICS", undefined, issues);
+  return d;
+}
