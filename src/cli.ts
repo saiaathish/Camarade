@@ -14,6 +14,7 @@ import {
   type RunComparisonOptions,
   type RunComparisonResult
 } from "./core/run-comparison.js";
+import { measureCompletedExperiment } from "./evaluation/measure-completed-experiment.js";
 
 const AVAILABLE_ADAPTERS = ["fixture", "command"] as const;
 const SINGLE_VALUE_FLAGS = new Set([
@@ -28,6 +29,7 @@ const SINGLE_VALUE_FLAGS = new Set([
 
 export const CLI_USAGE = [
 "Usage:",
+  "  camarade measure (--comparison ID --controller-root PATH | --experiment-directory PATH) --confirm-measurement",
   "  camarade compile --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--reasoner fixture] [--context-budget CHARACTERS] [--intelligence-artifact REPO-REL] [--output-format human|json]",
   "  camarade inspect --task TEXT [--repo PATH] [--repository-id ID] [--output REPO-REL] [--stdout] [--no-git]",
   "  camarade evaluate [--repo PATH] [--artifact REPO-REL] [--json]",
@@ -76,8 +78,9 @@ export interface ParsedCompileOptions {
   intelligenceArtifactPath?: string;
   outputFormat: "human" | "json";
 }
+export interface ParsedMeasureOptions { command:"measure"; comparisonId?:string; controllerRoot?:string; experimentDirectory?:string; confirmMeasurement:true }
 
-export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions;
+export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions | ParsedMeasureOptions;
 
 export interface CliIo {
   stdout: { write(content: string): unknown };
@@ -128,6 +131,14 @@ function parseAdapter(value: string): "fixture" | "command" {
 
 export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): ParsedCommandOptions {
   if (argv.length === 0) throw new CliUsageError("Missing command: evaluate.");
+  if (argv[0] === "measure") {
+    const values=new Map<string,string>(); let confirm=false;
+    for(let i=1;i<argv.length;i+=1){const flag=argv[i]; if(flag==="--confirm-measurement"){if(confirm)throw new CliUsageError("Duplicate flag: --confirm-measurement.");confirm=true;continue;} if(flag!=="--comparison"&&flag!=="--controller-root"&&flag!=="--experiment-directory")throw new CliUsageError(`Unknown flag: ${flag}.`); if(values.has(flag))throw new CliUsageError(`Duplicate flag: ${flag}.`); values.set(flag,requiredValue(argv,i,flag));i+=1;}
+    if(!confirm)throw new CliUsageError("Missing required flag: --confirm-measurement."); const comparisonId=values.get("--comparison"),controllerRoot=values.get("--controller-root"),experimentDirectory=values.get("--experiment-directory");
+    if((comparisonId===undefined)!==(controllerRoot===undefined))throw new CliUsageError("--comparison requires --controller-root."); if((comparisonId!==undefined||controllerRoot!==undefined)&&experimentDirectory!==undefined)throw new CliUsageError("Locator modes are mutually exclusive."); if(comparisonId===undefined&&experimentDirectory===undefined)throw new CliUsageError("One locator mode is required.");
+    if(comparisonId!==undefined&&!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(comparisonId))throw new CliUsageError("Unsafe comparison ID.");
+    return {command:"measure",...(comparisonId===undefined?{}:{comparisonId}),...(controllerRoot===undefined?{}:{controllerRoot:resolve(cwd,controllerRoot)}),...(experimentDirectory===undefined?{}:{experimentDirectory:resolve(cwd,experimentDirectory)}),confirmMeasurement:true};
+  }
   if (argv[0] === "inspect") return parseInspectArgs(argv, cwd);
   if (argv[0] === "compile") return parseCompileArgs(argv, cwd);
   if (argv.length === 1 && argv[0] === "evaluate") throw new CliUsageError("Missing evaluation artifact options.");
@@ -353,6 +364,9 @@ export async function runCli(
     const parsed = argv.length === 1 && argv[0] === "evaluate"
       ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
       : parseCliArgs(argv);
+    if (parsed.command === "measure") {
+      const result=await measureCompletedExperiment({comparisonId:parsed.comparisonId,controllerRoot:parsed.controllerRoot,experimentDirectory:parsed.experimentDirectory}); io.stdout.write(`${JSON.stringify(result)}\n`); return 0;
+    }
     if (parsed.command === "compile") {
       const task = await compilationTaskText(parsed);
       const result = await contextCompiler({

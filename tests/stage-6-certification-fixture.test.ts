@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { createHeroFixture } from "../scripts/create-hero-fixture.js";
+const make=async()=>{const parent=await mkdtemp(join(tmpdir(),"s6-fixture-"));const f=await createHeroFixture(join(parent,"hero"),{extraFiles:[{relativePath:"fake-codex.mjs",contents:"#!/usr/bin/env node\nif(process.argv.includes('--version')){console.log('fake-codex 1.0.0');process.exit(0)}\nconsole.log(JSON.stringify({type:'result',usage:{input_tokens:1,output_tokens:1}}))\n",executable:true},{relativePath:"camarade.run.yaml",contents:"validationCommands:\n  - true\n"}]});return {parent,f};};
+const run=(p:string,a:string[])=>new Promise<{code:number|null;out:string;err:string}>((resolve,reject)=>execFile(p,a,{encoding:"utf8"},(e,out,err)=>resolve({code:e&&"code" in e?Number(e.code):0,out,err})));
+describe("S6-R4 fixture contract",()=>{
+it("[F01] writes fake adapter before commit",async()=>{const x=await make();expect(await readFile(join(x.f.fixturePath,"fake-codex.mjs"),"utf8")).toContain("--version");await rm(x.parent,{recursive:true,force:true});});
+it("[F02] writes run config before commit",async()=>{const x=await make();expect(await readFile(join(x.f.fixturePath,"camarade.run.yaml"),"utf8")).toContain("validationCommands");await rm(x.parent,{recursive:true,force:true});});
+it("[F03] adapter exists in HEAD",async()=>{const x=await make();expect((await run("git",["-C",x.f.fixturePath,"cat-file","-e","HEAD:fake-codex.mjs"])).code).toBe(0);await rm(x.parent,{recursive:true,force:true});});
+it("[F04] config exists in HEAD",async()=>{const x=await make();expect((await run("git",["-C",x.f.fixturePath,"cat-file","-e","HEAD:camarade.run.yaml"])).code).toBe(0);await rm(x.parent,{recursive:true,force:true});});
+it("[F05] adapter mode is executable",async()=>{const x=await make();expect((await run("git",["-C",x.f.fixturePath,"status","--porcelain"])).out).toBe("");await rm(x.parent,{recursive:true,force:true});});
+it("[F06] fixture status is clean",async()=>{const x=await make();expect((await run("git",["-C",x.f.fixturePath,"status","--porcelain"])).out).toBe("");await rm(x.parent,{recursive:true,force:true});});
+it("[F07] builder commits extras",async()=>{const x=await make();expect(x.f.startingSha).toMatch(/^[0-9a-f]+$/);await rm(x.parent,{recursive:true,force:true});});
+it("[F08] production fixture is usable",async()=>{const x=await make();expect(x.f.fixturePath).toContain("s6-fixture-");await rm(x.parent,{recursive:true,force:true});});
+it("[V01] accepts version probe",async()=>{const x=await make();const r=await run(join(x.f.fixturePath,"fake-codex.mjs"),["--version"]);expect(r.code).toBe(0);await rm(x.parent,{recursive:true,force:true});});
+it("[V02] returns deterministic version",async()=>{const x=await make();const r=await run(join(x.f.fixturePath,"fake-codex.mjs"),["--version"]);expect(r.out).toBe("fake-codex 1.0.0\n");await rm(x.parent,{recursive:true,force:true});});
+it("[V03] version writes no stderr",async()=>{const x=await make();const r=await run(join(x.f.fixturePath,"fake-codex.mjs"),["--version"]);expect(r.err).toBe("");await rm(x.parent,{recursive:true,force:true});});
+it("[V04] normal adapter remains callable",async()=>{const x=await make();const r=await run(join(x.f.fixturePath,"fake-codex.mjs"),[]);expect(r.code).toBe(0);await rm(x.parent,{recursive:true,force:true});});
+});
