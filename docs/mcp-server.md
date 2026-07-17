@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Camarade is a local stdio MCP server that compiles task-specific repository context. It uses Stage 3 repository intelligence and the Stage 4 compiler. It does not execute a coding agent, execute validation commands, or score an implementation.
+Camarade is a local stdio MCP server with three staged tools: compile task-specific repository context, run a matched baseline-versus-Camarade coding experiment, and deterministically measure a completed experiment. The compile tool does not execute a coding agent or execute validation commands. The Stage 5 and Stage 6 tools require explicit execution confirmation.
 
 ## Requirements
 
@@ -35,12 +35,14 @@ An MCP client normally launches the compiled command.
 ## Server contract
 
 - Server name: `camarade`
-- Server version: `1.0.0`
+- Server version: `1.2.0`
 - Transport: stdio
 
 ## Tool contract
 
-The server exposes exactly one tool: `camarade.compile_task_context`.
+The server exposes exactly three tools: `camarade.compile_task_context`, `camarade.run_fair_experiment`, and `camarade.measure_experiment`.
+
+### Compile task context
 
 Required inputs:
 
@@ -63,6 +65,23 @@ Example arguments (replace the placeholder path):
   "context_budget": 12000
 }
 ```
+
+### Run a fair experiment
+
+`camarade.run_fair_experiment` requires `repository_root`, `task`, and `confirm_execution: true`. An optional absolute `evaluation_definition_path` seals the rubric and hidden assets before either Codex condition begins. The tool returns raw Stage 5 evidence and never returns a score or winner.
+
+### Measure an experiment
+
+`camarade.measure_experiment` requires `comparison_id`, an absolute `evaluation_definition_path`, and the exact nested confirmation:
+
+```json
+{
+  "confirmed": true,
+  "statement": "I authorize Camarade to execute the declared evaluation commands."
+}
+```
+
+Pass either `experiment_directory` or `controller_root` when the comparison is not under the server working directory. The tool verifies Stage 5 integrity, reconstructs disposable candidate sandboxes, runs the sealed checks, writes evidence, and returns no outcome for invalid or limited experiments. See [the Stage 6 MCP contract](stage-6/mcp-contract.md).
 
 ## Success response
 
@@ -131,11 +150,12 @@ Each compilation retains nine Stage 4 artifact files in an external controller r
 ## Security boundary
 
 - Local stdio transport only
-- No shell execution from tool input
-- No coding-agent execution
-- No validation-command execution
-- No repository mutation
-- No token usage claim
+- No shell execution in `camarade.compile_task_context`
+- Explicit confirmation before coding-agent or evaluation-command execution
+- Evaluation command strings come only from a sealed, predeclared definition
+- No target repository file mutation; execution occurs in disposable worktrees
+- No estimated token usage
+- No LLM-as-judge scoring
 - No remote network service
 - Input paths are validated
 

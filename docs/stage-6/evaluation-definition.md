@@ -2,7 +2,7 @@
 
 Definitions are JSON-only and every object is strict. Required fields are `version`, `id`, `task`, `tieTolerance`, `correctnessChecks`, `requirements`, `rules`, `changePolicy`, `dependencyPolicy`, `telemetryPolicy`, and `hiddenAssets`. Version and tolerance are exactly 1. IDs are globally unique; weights are positive finite numbers.
 
-Supported checks are `command`, `file-exists`, `file-absent`, `text-present`, `text-absent`, `path-unchanged`, `path-changed`, `dependency-present`, `dependency-absent`, and `json-value`. Commands default to timeout 1800 and exit code `[0]`, and are declarations only in S6-01.
+Supported checks are `command`, `file-exists`, `file-absent`, `text-present`, `text-absent`, `path-unchanged`, `path-changed`, `dependency-present`, `dependency-absent`, and `json-value`. Commands default to timeout 1800 and exit code `[0]`. Stage 6 executes the sealed declarations only after exact user confirmation.
 
 Paths are relative POSIX paths: no absolute paths, drive prefixes, backslashes, null bytes, or `..` segments. Package names are unscoped or scoped npm names, not URLs, paths, or versions. Policy arrays are unique and exact conflicts are rejected. Telemetry booleans are required. Hidden assets are relative to the definition and are not read or hashed by S6-01.
 
@@ -40,8 +40,8 @@ Paths are relative POSIX paths: no absolute paths, drive prefixes, backslashes, 
 
 This example demonstrates schema structure only. Its commands, paths, requirements, and rules are illustrative and are not benchmark results.
 
-S6-01 validates the definition but does not execute commands, read hidden assets, hash hidden assets, calculate scores, or declare an outcome.
+Definition validation occurs before evaluation commands, sandbox creation, or artifact mutation.
 
-For S6-02 sealing, hidden-asset paths are relative to the definition directory. Hidden assets must be outside the target repository and must be regular non-symlink files. The definition and assets are reread before publication; mutation aborts execution. Sealed copies live in controller-owned storage. S6-02 hashes and copies assets but does not execute them.
+For Stage 5 sealing, hidden-asset paths are relative to the definition directory. Hidden assets must be outside the target repository and must be regular non-symlink files. The definition and assets are reread before publication; mutation aborts execution. Sealed copies live in controller-owned storage. Stage 5 hashes and copies assets without exposing them to either agent. Stage 6 copies sealed assets only into disposable evaluation sandboxes.
 
-Invalid relative paths, symlink files, unknown properties, tolerance `1.1`, duplicate IDs, and conflicting policy patterns are rejected with typed errors. The loader requires an absolute regular non-symlink file, checks size before reading, enforces 1 MiB, uses JSON.parse, and validates structure and semantics. S6-02 will protect hidden assets.
+Invalid relative paths, symlink files, unknown properties, tolerance `1.1`, duplicate IDs, and conflicting policy patterns are rejected with typed errors. The loader requires an absolute regular non-symlink file, checks size before reading, enforces 1 MiB, uses `JSON.parse`, and validates structure and semantics.

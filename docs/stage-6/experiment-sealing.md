@@ -1,6 +1,6 @@
 # S6-02 experiment sealing
 
-S6-02 optionally accepts an absolute evaluation-definition path. Camarade validates the definition and matches its normalized task before creating worktrees or starting an agent. When omitted, Stage 5 records explicit unavailable evidence and remains limited.
+Stage 5 optionally accepts an absolute evaluation-definition path. Camarade validates the definition and matches its normalized task before creating worktrees or starting an agent. When omitted, Stage 5 records explicit unavailable evidence and Stage 6 remains limited.
 
 Sealed definitions are copied into controller-owned storage under `evaluation/`. Hidden assets are resolved relative to the definition, must be regular non-symlink files outside the target repository, and are copied byte-for-byte without entering worktrees, prompts, or context artifacts.
 
@@ -12,4 +12,4 @@ Definition hashes use canonical validated JSON. Hidden-asset hashes use sorted r
 
 Unavailable references contain `status: "unavailable"` and reason `EVALUATION_DEFINITION_NOT_PROVIDED`. Integrity verification classifies trustworthy sealed evidence as `valid`, absent optional evidence or legacy artifacts as `limited`, and mismatched or tampered evidence as `invalid`.
 
-S6-02 seals and verifies evidence only. It does not execute evaluation checks, calculate scores, declare outcomes, or add an MCP Stage 6 tool. S6-03 will execute deterministic evaluation checks.
+Stage 6 re-verifies the sealed definition, hidden assets, timestamps, condition controls, patches, and artifact index before any declared command executes. A supplied measurement definition must hash to the pre-run sealed definition.
