@@ -4,7 +4,7 @@
 Stage 6 uses predeclared deterministic evidence to compare matched runs.
 
 ## Stage boundary
-S6-01 defines, validates, and securely loads definitions. S6-02 seals definitions and verifies experiment integrity. S6-03 will execute deterministic evaluation checks. S6-02 does not execute checks, measure, score, report, integrate MCP, or certify the hero.
+Stage 6 measures completed Stage 5 evidence. It does not rerun Codex, add a dashboard, use LLM-as-judge scoring, generate hidden tests, aggregate public benchmarks, or add new coding-agent adapters.
 
 ## Deterministic evidence
 Commands, file/path/dependency/JSON checks, changed paths, and adapter telemetry are evidence. Missing evidence is `unavailable`, never invented or estimated. No LLM-as-judge scoring is allowed.
@@ -40,7 +40,7 @@ Change-policy evidence maps to 10 points.
 Token efficiency is 3 points and runtime efficiency is 2 points. Lower tokens earn 3 and the other condition earns `3 × lower total ÷ other total`; shorter runtime earns 2 and the other earns `2 × shorter duration ÷ other duration`. Telemetry is adapter-only: no token estimation, monotonic controller duration, and agent duration separate from evaluator duration.
 
 ## Material failures
-Future scoring overrides are: passing a mandatory correctness gate defeats uniquely failing it; no material rule violation defeats a unique material violation; completing all mandatory requirements defeats uniquely missing one; equal material failures continue numeric scoring; every override requires saved evidence. S6-01 only defines this policy.
+Passing a mandatory correctness gate defeats uniquely failing it; no material rule violation defeats a unique material violation; completing all mandatory requirements defeats uniquely missing one. Equal material failures continue numeric scoring. Every applied override records the exact failed check IDs.
 
 ## Official benchmark eligibility
 Official 100-point benchmarks require valid status and all required weight measurable.
@@ -49,9 +49,10 @@ Official 100-point benchmarks require valid status and all required weight measu
 Unavailable evidence stays visible and earns zero; it is not normalized into credit. Store unrounded values and round only for display.
 
 ## Pre-sealed evaluation requirement
-Definitions must be fixed and validated before official execution. S6-02 will handle sealing and integrity.
+Definitions and hidden assets are validated, copied, and hashed before either Stage 5 condition begins. A missing legacy seal is limited; a changed or late seal is invalid.
 
-## Future Stage 6 implementation steps
-S6-02 sealing, S6-03 execution, S6-04 measurement, S6-05 scoring/reporting, S6-06 MCP, S6-07 hero certification.
+## Evaluation isolation
+Stage 6 verifies Stage 5 evidence before any declared command runs. It reconstructs each condition from the shared starting commit and recorded patch in a unique disposable Git worktree, captures implementation changes before overlays, copies identical sealed hidden assets, evaluates both conditions with the same environment policy, and removes both worktrees afterward. The original repository and completed Stage 5 evidence remain unchanged.
 
-Category score = category maximum × passed declared weight ÷ total declared weight. Category measurable maximum = category maximum × measurable declared weight ÷ total declared weight.
+## Formula
+Correctness, requirement, and rule scores use `category maximum × passed measurable weight ÷ measurable weight`. Any unavailable declared weight makes the experiment limited. Raw values are stored without display rounding.
