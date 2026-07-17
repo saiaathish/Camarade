@@ -80,4 +80,26 @@ describe("Stage 4 task normalization", () => {
     expect(normalizeTask(task)).toEqual(first);
     expect(first.originalTask).toBe(task);
   });
+
+  it("corrects common spelling and shorthand locally while preserving the raw request", () => {
+    const original = "hey can u add rate limting to search. dont change auth or billing. make the third request return 429.";
+    const result = normalizeTask(original);
+
+    expect(result.originalTask).toBe(original);
+    expect(result.normalizedTask).toBe(
+      "hey can you add rate limiting to search. don't change auth or billing. make the third request return 429."
+    );
+    expect(result.operation).toBe("add");
+    expect(result.domains).toEqual(expect.arrayContaining(["security", "rate-limiting"]));
+  });
+
+  it("does not rewrite code spans, paths, URLs, flags, identifiers, acronyms, or ambiguous words", () => {
+    const result = normalizeTask(
+      "Fix teh typo in `createMesage`, src/mesage.ts, --mesage-mode, and https://example.com/mesage for API trpc support."
+    );
+
+    expect(result.normalizedTask).toBe(
+      "Fix the typo in `createMesage`, src/mesage.ts, --mesage-mode, and https://example.com/mesage for API trpc support."
+    );
+  });
 });

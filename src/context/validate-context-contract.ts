@@ -273,7 +273,7 @@ export function validateContextContract(input: ValidateContextContractInput): Ta
   ]);
   for (const [id, expected] of taskItemMap) {
     const actual = contractItems.get(id);
-    if (!actual || actual.section !== taskSections.get(expected.kind) || actual.item.statement !== expected.statement || actual.item.confidence !== "high" || !same(actual.item.evidenceIds, [id]) || !same(actual.item.sourcePaths, ["<task>"]) || !same(actual.item.reasonCodes, [taskReasons.get(expected.kind)!]) || actual.item.selectionReason !== "Preserved verbatim from the user-provided task.") reject(`Task-derived context item ${id} is missing or malformed.`, "CONTEXT_PROVENANCE_INVALID", "validate-context-contract", { itemId: id });
+    if (!actual || actual.section !== taskSections.get(expected.kind) || actual.item.statement !== expected.statement || actual.item.confidence !== "high" || !same(actual.item.evidenceIds, [id]) || !same(actual.item.sourcePaths, ["<task>"]) || !same(actual.item.reasonCodes, [taskReasons.get(expected.kind)!]) || actual.item.selectionReason !== "Preserved from the locally normalized user task; the original request remains in task provenance.") reject(`Task-derived context item ${id} is missing or malformed.`, "CONTEXT_PROVENANCE_INVALID", "validate-context-contract", { itemId: id });
   }
 
   const sectionByCategory: Partial<Record<ContextCandidate["category"], typeof mandatorySections[number]>> = {

@@ -63,6 +63,8 @@ npm run camarade -- compile \
 
 When `--controller-root` is omitted, Camarade creates and retains a fresh external temporary controller root and prints its path. The command writes nine auditable files under `.camarade/compilations/<compilation-id>/`, including canonical JSON, Markdown rendered solely from that JSON, every candidate decision, unresolved conflicts, provenance hashes, and a summary. The analyzed repository remains unchanged.
 
+Task spelling is cleaned up locally before context reasoning or Codex execution, so the model-facing task does not carry common typos or shorthand. The exact raw request stays in JSON provenance, and technical or ambiguous terms are left unchanged.
+
 The default `fixture` reasoner is deterministic and offline. It is a testable provider boundary, not an agent execution or model-quality claim. See the [task context compiler guide](docs/context-compiler.md) and [Stage 4 technical reference](docs/stage-4/task-context-compiler.md) for configuration, strict intelligence loading, budgets, artifacts, failure codes, and limitations.
 
 ## Run the simulated hero comparison

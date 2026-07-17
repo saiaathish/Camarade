@@ -8,5 +8,6 @@
 | D-004 | Stage 1 adds contracts/docs only. | Freeze scope before runtime implementation. |
 | D-005 | No benchmark result is claimed before execution. | Avoid fabricated evidence. |
 | D-006 | Stage 6 freezes an inclusive 1.0-point tie tolerance, requires deterministic predeclared evaluation definitions, and separates valid, limited, and invalid experiment statuses. | Prevent post-result rubric changes, fabricated measurements, and unsupported benchmark winners. |
+| D-007 | Correct only high-confidence task spelling locally before context reasoning and Stage 5 execution while retaining raw task provenance. | Reduce model-facing spelling noise without spending model tokens or silently rewriting technical and ambiguous terms. |
 
 AI-assisted work: documents drafted and consistency-checked by Codex; no benchmark or runtime claim inferred.
