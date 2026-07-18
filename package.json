@@ -2,6 +2,20 @@
   "name": "camarade",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "camarade": "dist/src/bin/camarade.js"
+  },
+  "files": [
+    "dist/src",
+    "dist/scripts",
+    "fixtures",
+    "camarade.run.yaml",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",

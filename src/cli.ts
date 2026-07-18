@@ -17,6 +17,9 @@ import {
 import { measureCompletedExperiment } from "./evaluation/measure-completed-experiment.js";
 import { explainCompletedExperiment } from "./explanation/explain-completed-experiment.js";
 import { EXPLAIN_CONFIRMATION } from "./mcp/tools/explain-experiment-schema.js";
+import { evaluateTask } from "./evaluate/evaluate-task.js";
+import { listRuns, showRun } from "./evaluate/run-store.js";
+import { renderDashboardRun } from "./evaluate/render-dashboard-run.js";
 
 const AVAILABLE_ADAPTERS = ["fixture", "command"] as const;
 const SINGLE_VALUE_FLAGS = new Set([
@@ -38,6 +41,9 @@ export const CLI_USAGE = [
   "  camarade evaluate [--repo PATH] [--artifact REPO-REL] [--json]",
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) --adapter fixture --controller-root PATH [--timeout SECONDS]",
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) --adapter command --controller-root PATH --command-executable FILE [--command-arg ARG ...] [--timeout SECONDS]",
+  "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--confirm-execution] [--json]",
+  "  camarade runs [--controller-root PATH] [--json]",
+  "  camarade show COMPARISON-ID [--controller-root PATH] [--json]",
   "",
   "The command adapter starts the explicitly configured executable directly without a shell.",
   "Repeat --command-arg once for each literal argument, in execution order."
@@ -52,6 +58,7 @@ export interface ParsedCliOptions {
   timeoutSeconds?: number;
   command?: { executable: string; args: string[] };
 }
+export interface ParsedPipelineOptions { command: "evaluate-task"; repositoryPath: string; task?: string; taskFile?: string; controllerRoot?: string; confirmExecution: boolean; json: boolean }
 
 export interface ParsedInspectOptions {
   command: "inspect";
@@ -84,7 +91,7 @@ export interface ParsedCompileOptions {
 export interface ParsedMeasureOptions { command:"measure"; comparisonId?:string; controllerRoot?:string; experimentDirectory?:string; confirmMeasurement:true }
 export interface ParsedExplainOptions { command:"explain"; comparisonId?:string; controllerRoot?:string; experimentDirectory?:string; confirmExplanation:true }
 
-export type ParsedCommandOptions = ParsedCliOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions | ParsedMeasureOptions | ParsedExplainOptions;
+export type ParsedCommandOptions = ParsedCliOptions | ParsedPipelineOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions | ParsedMeasureOptions | ParsedExplainOptions;
 
 export interface CliIo {
   stdout: { write(content: string): unknown };
@@ -150,6 +157,14 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
   if (argv.length === 1 && argv[0] === "evaluate") throw new CliUsageError("Missing evaluation artifact options.");
   if (argv[0] !== "evaluate") {
     throw new CliUsageError(`Unknown command ${JSON.stringify(argv[0])}. Expected: compile, inspect, or evaluate.`);
+  }
+
+  const hasLegacy = argv.some(flag => ["--adapter", "--command-executable", "--command-arg", "--timeout"].includes(flag));
+  if (!hasLegacy && argv.some(flag => ["--task", "--task-file"].includes(flag))) {
+    const allowed = new Set(["--repo", "--task", "--task-file", "--controller-root", "--confirm-execution", "--json"]); const values = new Map<string,string>(); let confirm=false, json=false;
+    for (let i=1;i<argv.length;i+=1) { const flag=argv[i]!; if(flag === "--confirm-execution"){if(confirm)throw new CliUsageError("Duplicate flag: --confirm-execution.");confirm=true;continue;} if(flag === "--json"){if(json)throw new CliUsageError("Duplicate flag: --json.");json=true;continue;} if(!allowed.has(flag))throw new CliUsageError(`Unknown flag: ${flag}.`); if(values.has(flag))throw new CliUsageError(`Duplicate flag: ${flag}.`); values.set(flag,requiredValue(argv,i,flag)); i+=1; }
+    const task=values.get("--task"), taskFile=values.get("--task-file"); if((task===undefined)===(taskFile===undefined))throw new CliUsageError("Exactly one of --task or --task-file is required."); if(task?.trim()==="")throw new CliUsageError("--task must be non-empty.");
+    return {command:"evaluate-task", repositoryPath:resolve(cwd,values.get("--repo")??"."), ...(task===undefined?{}:{task:task.trim()}), ...(taskFile===undefined?{}:{taskFile:resolve(cwd,taskFile)}), ...(values.get("--controller-root")===undefined?{}:{controllerRoot:resolve(cwd,values.get("--controller-root")!)}), confirmExecution:confirm, json};
   }
 
   if (!argv.some(flag => ["--task", "--task-file", "--adapter", "--controller-root", "--command-executable", "--command-arg", "--timeout"].includes(flag))) {
@@ -367,11 +382,17 @@ export async function runCli(
 ): Promise<number> {
   try {
     if (argv.length === 1 && argv[0] === "--help") { io.stdout.write(`${CLI_USAGE}\n`); return 0; }
+    if (argv[0] === "runs" || argv[0] === "show") { const json=argv.includes("--json"); const root=argv.includes("--controller-root")?argv[argv.indexOf("--controller-root")+1]:undefined; const value=argv[0]==="runs"?await listRuns(root):await showRun(argv[1]??"",root); io.stdout.write(`${JSON.stringify(value)}\n`); return 0; }
     const parsed = argv.length === 1 && argv[0] === "evaluate"
       ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
       : parseCliArgs(argv);
     if (parsed.command === "measure") {
       const result=await measureCompletedExperiment({comparisonId:parsed.comparisonId,controllerRoot:parsed.controllerRoot,experimentDirectory:parsed.experimentDirectory}); io.stdout.write(`${JSON.stringify(result)}\n`); return 0;
+    }
+    if (parsed.command === "evaluate-task") {
+      const run = await evaluateTask(parsed);
+      if (parsed.json) io.stdout.write(`${JSON.stringify(run)}\n`); else io.stdout.write(renderDashboardRun(run));
+      return run.status === "failed" ? 1 : 0;
     }
     if (parsed.command === "explain") {
       const result = await explainCompletedExperiment({ comparisonId: parsed.comparisonId, controllerRoot: parsed.controllerRoot, experimentDirectory: parsed.experimentDirectory });

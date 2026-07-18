@@ -1,0 +1,5 @@
+# Stage 8 dashboard contract (S8-01)
+
+`stage-8-dashboard.v1` is a strict, sanitized, agent-independent view contract. Public statuses are `running`, `valid`, `limited`, `invalid`, `failed`; outcomes are `win`, `tie`, `regression`, `null`. Only `valid` has a non-null outcome. Conditions are exactly `baseline` and `camarade`, with equal structures. Progress stages are `preflight`, `repository-intelligence`, `context-compilation`, `experiment-preparation`, `baseline-execution`, `camarade-execution`, `measurement`, `instruction-explanation`, `finalization`, `complete`, `failed`.
+
+The production schema is strict and rejects unknown fields, absolute paths, traversal, backslashes, null bytes, and unbounded/private content. Numeric measurements use `null` with `unavailable` or `not-applicable`, never zero. Evidence retains its declared strength; correlated evidence is never upgraded. The pure `buildDashboardRun` function sorts collections and validates without I/O, scoring, or impact analysis. Stage 7 absence is represented by a limitation.
