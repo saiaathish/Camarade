@@ -479,7 +479,11 @@ function reasoningRequest(
   artifact: IntelligenceArtifact
 ): ContextReasoningRequest {
   return {
-    task: structuredClone(task),
+    task: {
+      ...structuredClone(task),
+      // The raw request remains in compiler artifacts, but model-backed reasoners only receive local cleanup.
+      originalTask: task.normalizedTask
+    },
     candidates: [...candidates].sort((left, right) => left.candidateId.localeCompare(right.candidateId)).map((candidate) => ({
       candidateId: candidate.candidateId,
       statement: candidate.statement,

@@ -71,7 +71,7 @@ export function renderContextContract(contract: TaskContextContract): string {
     "",
     "## Task",
     "",
-    escapeMarkdown(contract.task.originalTask),
+    escapeMarkdown(contract.task.normalizedTask),
     "",
     "## Goal",
     "",

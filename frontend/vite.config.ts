@@ -6,5 +6,13 @@ export default defineConfig({
   build: {
     target: "es2022",
     cssMinify: "lightningcss",
+    rollupOptions: {
+      input: {
+        home: "index.html",
+        compiler: "compiler/index.html",
+        experiment: "experiment/index.html",
+        evidence: "evidence/index.html",
+      },
+    },
   },
 });

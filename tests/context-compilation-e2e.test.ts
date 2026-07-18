@@ -33,6 +33,16 @@ async function repositoryCopy(): Promise<string> {
   return repository;
 }
 
+async function spellingRepository(): Promise<string> {
+  const root = await temporaryRoot("camarade-spelling-repo-");
+  const repository = join(root, "repository");
+  await mkdir(join(repository, "src"), { recursive: true });
+  await writeFile(join(repository, "package.json"), '{"name":"spelling-fixture"}\n');
+  await writeFile(join(repository, "AGENTS.md"), "- Reuse the shared middleware for rate limiting.\n");
+  await writeFile(join(repository, "src", "search.ts"), "export const search = true;\n");
+  return repository;
+}
+
 async function decisions(path: string): Promise<Array<{ candidateId: string; decision: string; reasonCodes: string[] }>> {
   return JSON.parse(await readFile(path, "utf8"));
 }
@@ -57,6 +67,34 @@ describe("context compilation pipeline", () => {
     expect(normalize(first.contract)).toEqual(normalize(second.contract));
     expect(first.contract.provenance.evidenceIds).toEqual(second.contract.provenance.evidenceIds);
     expect(first.manifest.reasoner).toEqual(second.manifest.reasoner);
+  }, 20_000);
+
+  it("keeps raw task provenance while exposing only corrected spelling at model boundaries", async () => {
+    const rawTask = "Add rate limting to the public search API. dont change auth.";
+    const correctedTask = "Add rate limiting to the public search API. don't change auth.";
+    const repository = await spellingRepository();
+    const fixture = new FixtureContextReasoner();
+    let reasonerTask = "";
+    const capturingReasoner: ContextReasoner = {
+      id: "fixture-spelling-capture",
+      version: "1.0.0",
+      async evaluate(input) {
+        reasonerTask = input.task.originalTask;
+        return fixture.evaluate(input);
+      }
+    };
+
+    const result = await compileContextPipeline({ repositoryPath: repository, task: rawTask, reasoner: capturingReasoner });
+    roots.push(result.controllerRoot);
+    const markdown = await readFile(result.artifacts.contractMarkdown, "utf8");
+
+    expect(result.contract.task.originalTask).toBe(rawTask);
+    expect(result.contract.task.normalizedTask).toBe(correctedTask);
+    expect(reasonerTask).toBe(correctedTask);
+    expect(markdown).toContain("Add rate limiting to the public search API");
+    expect(markdown).toContain("don't change auth");
+    expect(markdown).not.toContain("limting");
+    expect(markdown).not.toContain("dont change");
   }, 20_000);
 
   it("proves the intended hero selections, exclusions, and one unresolved policy choice", async () => {

@@ -1,8 +1,41 @@
-import { ContextCompiler } from "./components/ContextCompiler";
 import { ContextDiff } from "./components/ContextDiff";
 import { ExperimentFlow } from "./components/ExperimentFlow";
 
 const GITHUB_URL = "https://github.com/saiaathish/Camarade";
+
+const navigation = [
+  { href: "/compiler/", label: "Compiler", path: "/compiler" },
+  { href: "/experiment/", label: "Compare", path: "/experiment" },
+  { href: "/evidence/", label: "Evidence", path: "/evidence" },
+] as const;
+
+const sourceFiles = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  ".cursor/rules/**",
+  ".github/copilot-instructions.md",
+  "README.md + docs/**",
+  "relevant code + config",
+];
+
+const runArtifacts = [
+  ["Context", "What each run received"],
+  ["Code changes", "The patch created by each run"],
+  ["Tests", "What passed and what failed"],
+  ["Run setup", "Proof that both runs used the same settings"],
+  ["Saved files", "A manifest and index of every artifact"],
+];
+
+const evidenceBoundaries = [
+  "Both runs use the same commit, task, model, permissions, environment, and tests.",
+  "You see the setup and approve it before either run starts.",
+  "Only the context changes between the two runs.",
+  "Camarade records what happened without choosing a winner or inventing a score.",
+];
+
+function currentPath() {
+  return window.location.pathname.replace(/\/+$/, "") || "/";
+}
 
 function ExternalLink({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return (
@@ -14,171 +47,213 @@ function ExternalLink({ className = "", children }: { className?: string; childr
   );
 }
 
-const sourceFiles = [
-  "AGENTS.md",
-  "CLAUDE.md",
-  ".cursor/rules/**",
-  ".github/copilot-instructions.md",
-  "README + docs",
-  "code + tests",
-  "package + config",
-  "Git evidence",
-];
+function SiteHeader({ path }: { path: string }) {
+  return (
+    <header className="site-header">
+      <a className="wordmark" href="/" aria-label="Camarade home" aria-current={path === "/" ? "page" : undefined}>
+        Camarade<span aria-hidden="true">/</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        {navigation.map((item) => (
+          <a href={item.href} aria-current={path === item.path ? "page" : undefined} key={item.path}>
+            {item.label}
+          </a>
+        ))}
+      </nav>
+      <ExternalLink className="header-github">GitHub</ExternalLink>
+    </header>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <a href="/">Camarade/</a>
+      <p>Compressed context. Fair comparisons.</p>
+    </footer>
+  );
+}
+
+function ArtifactList() {
+  return (
+    <dl className="artifact-list">
+      {runArtifacts.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function HomePage() {
+  return (
+    <main id="main-content">
+      <section className="hero" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <h1 id="hero-title">
+            Camarade gives your coding agent <span className="context-mark">only the context it needs.</span>
+          </h1>
+          <div className="hero-actions">
+            <a className="button button--primary" href="/compiler/">See how it works</a>
+            <ExternalLink className="text-link">
+              View on GitHub
+            </ExternalLink>
+          </div>
+        </div>
+      </section>
+
+      <section className="product-preview" aria-labelledby="preview-title">
+        <div className="preview-heading">
+          <h2 id="preview-title">Camarade compresses messy context into a clear task.</h2>
+        </div>
+        <ContextDiff />
+      </section>
+
+      <section className="route-index" aria-labelledby="route-index-title">
+        <div>
+          <h2 id="route-index-title">What Camarade does.</h2>
+        </div>
+        <div className="route-index-list">
+          <a href="/compiler/">
+            <h3>See how Camarade decides which context to keep.</h3>
+            <span aria-hidden="true">→</span>
+          </a>
+          <a href="/experiment/">
+            <h3>Compare the original context with the compressed context.</h3>
+            <span aria-hidden="true">→</span>
+          </a>
+          <a href="/evidence/">
+            <h3>See the files Camarade saves from both runs.</h3>
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </section>
+
+      <section className="final-cta" aria-labelledby="home-cta-title">
+        <h2 id="home-cta-title">Want to try Camarade on a repository?</h2>
+        <ExternalLink className="final-link">View Camarade on GitHub</ExternalLink>
+      </section>
+    </main>
+  );
+}
+
+function CompilerPage() {
+  return (
+    <main id="main-content" className="route-main">
+      <section className="page-hero" aria-labelledby="compiler-title">
+        <h1 id="compiler-title">Camarade checks your repository context against the code and keeps only what matters for the task.</h1>
+      </section>
+
+      <section className="diff-section route-section" aria-labelledby="diff-title">
+        <div className="diff-intro">
+          <h2 id="diff-title">Messy context becomes compressed context.</h2>
+        </div>
+        <ContextDiff />
+      </section>
+
+      <section className="sources-section" aria-labelledby="sources-title">
+        <div className="sources-heading">
+          <h2 id="sources-title">Files Camarade checks.</h2>
+        </div>
+        <ul className="source-list" aria-label="Repository context sources">
+          {sourceFiles.map((source) => (
+            <li key={source}><code>{source}</code></li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="final-cta" aria-labelledby="compiler-cta-title">
+        <h2 id="compiler-cta-title">Then compare both versions on the same coding task.</h2>
+        <a className="final-link" href="/experiment/">See the comparison <span aria-hidden="true">→</span></a>
+      </section>
+    </main>
+  );
+}
+
+function ExperimentPage() {
+  return (
+    <main id="main-content" className="route-main">
+      <section className="page-hero" aria-labelledby="experiment-title">
+        <h1 id="experiment-title">Camarade runs the same coding task with the original context and the compressed context.</h1>
+      </section>
+
+      <section className="method-section route-section" aria-labelledby="method-title">
+        <div className="method-heading">
+          <h2 id="method-title">Same code. Same model. Same tests. Different context.</h2>
+        </div>
+        <div className="method-visual">
+          <ExperimentFlow />
+          <p className="method-note">You approve the setup before either run starts.</p>
+        </div>
+      </section>
+
+      <section className="evaluation-section" aria-labelledby="experiment-evidence-title">
+        <div className="evaluation-heading">
+          <h2 id="experiment-evidence-title">Files saved from both runs.</h2>
+        </div>
+        <div className="evidence-contract">
+          <ArtifactList />
+          <p className="evidence-note">Camarade records the results. It does not choose a winner or create a score.</p>
+        </div>
+      </section>
+
+      <section className="final-cta" aria-labelledby="experiment-cta-title">
+        <h2 id="experiment-cta-title">See the files that make the comparison auditable.</h2>
+        <a className="final-link" href="/evidence/">View the evidence <span aria-hidden="true">→</span></a>
+      </section>
+    </main>
+  );
+}
+
+function EvidencePage() {
+  return (
+    <main id="main-content" className="route-main">
+      <section className="page-hero" aria-labelledby="evidence-title">
+        <h1 id="evidence-title">Camarade saves the context, code changes, tests, and run settings from both runs.</h1>
+      </section>
+
+      <section className="evaluation-section route-section" aria-labelledby="artifacts-title">
+        <div className="evaluation-heading">
+          <h2 id="artifacts-title">Saved files.</h2>
+        </div>
+        <div className="evidence-contract"><ArtifactList /></div>
+      </section>
+
+      <section className="boundary-section" aria-labelledby="boundary-title">
+        <h2 id="boundary-title">The comparison stays honest.</h2>
+        <ul className="boundary-list">
+          {evidenceBoundaries.map((statement) => (
+            <li key={statement}>{statement}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="final-cta" aria-labelledby="evidence-cta-title">
+        <h2 id="evidence-cta-title">Check the code or run Camarade yourself.</h2>
+        <ExternalLink className="final-link">View Camarade on GitHub</ExternalLink>
+      </section>
+    </main>
+  );
+}
+
+function PageContent({ path }: { path: string }) {
+  if (path === "/compiler") return <CompilerPage />;
+  if (path === "/experiment") return <ExperimentPage />;
+  if (path === "/evidence") return <EvidencePage />;
+  return <HomePage />;
+}
 
 export default function App() {
+  const path = currentPath();
+
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to main content</a>
-
-      <header className="site-header">
-        <div className="brand-lockup">
-          <a className="wordmark" href="#top" aria-label="Camarade home">
-            Camarade<span aria-hidden="true">/</span>
-          </a>
-          <span className="build-status">
-            Early build <i>· contracts public · runtime next</i>
-          </span>
-        </div>
-        <nav aria-label="Primary navigation">
-          <a href="#method">Method</a>
-          <a href="#context-diff">Context diff</a>
-          <a href="#evaluation">Evaluation</a>
-        </nav>
-        <ExternalLink className="header-github">GitHub</ExternalLink>
-      </header>
-
-      <main id="main-content">
-        <section className="hero" id="top" aria-labelledby="hero-title">
-          <div className="hero-registration" aria-hidden="true">
-            <span>CA / 01</span>
-            <i />
-            <span>CONTEXT TESTING</span>
-          </div>
-          <div className="hero-copy">
-            <p className="kicker"><span /> Context CI for coding agents</p>
-            <h1 id="hero-title">
-              Your agent isn't <em>lost.</em>
-              <br />
-              Your <span className="context-mark">context</span> is.
-            </h1>
-            <p className="hero-support">
-              Camarade is designed to audit the instructions hiding across a repo, keep the evidence that matters for
-              one task, then test both versions from the same commit.
-            </p>
-            <div className="hero-actions">
-              <ExternalLink className="button button--primary">Open the repository</ExternalLink>
-              <a className="text-link" href="#context-diff">
-                Watch the context clean itself <span aria-hidden="true">↓</span>
-              </a>
-            </div>
-          </div>
-          <div className="hero-visual">
-            <ContextCompiler />
-          </div>
-          <div className="hero-name" aria-hidden="true">CAMARADE</div>
-        </section>
-
-        <section className="problem-section" aria-labelledby="problem-title">
-          <div className="section-index" aria-hidden="true">01 / THE QUIET FAILURE</div>
-          <div className="problem-grid">
-            <h2 id="problem-title">Instruction files don't fail loudly.</h2>
-            <div className="problem-copy">
-              <p>They age. They collide. They survive refactors long after the code moves on.</p>
-              <p>The agent sees the whole pile at once, with no test for whether that pile helps.</p>
-            </div>
-          </div>
-          <p className="pull-line">More context can make the next change worse.</p>
-        </section>
-
-        <section className="diff-section" id="context-diff" aria-labelledby="diff-title">
-          <div className="diff-intro">
-            <p className="kicker"><span /> One task, less noise</p>
-            <h2 id="diff-title">Cut the instruction pile before the agent runs.</h2>
-            <p>
-              The intended run checks every rule against live code, tests, config, docs, and Git history. What survives
-              becomes a small contract with receipts.
-            </p>
-            <small>Illustrative fixture from the public product spec.</small>
-          </div>
-          <ContextDiff />
-        </section>
-
-        <section className="method-section" id="method" aria-labelledby="method-title">
-          <div className="method-heading">
-            <p className="kicker"><span /> The controlled run</p>
-            <h2 id="method-title">One task. Two worktrees. No hand-waving.</h2>
-            <p>
-              Baseline keeps the original context. The Camarade worktree gets the compiled contract. Model, commit,
-              permissions, limits, environment, and validation commands stay matched.
-            </p>
-          </div>
-          <ExperimentFlow />
-        </section>
-
-        <section className="evaluation-section" id="evaluation" aria-labelledby="evaluation-title">
-          <div className="evaluation-heading">
-            <p className="kicker kicker--light"><span /> The evaluation contract</p>
-            <h2 id="evaluation-title">Correctness gets the biggest vote.</h2>
-            <p>
-              The current specification weighs the evidence before it calls a win, tie, regression, or limitation.
-            </p>
-          </div>
-
-          <div className="score-contract" aria-label="Camarade specification evaluation weights">
-            <div className="score-bar" aria-hidden="true">
-              <span className="score-correctness" />
-              <span className="score-requirements" />
-              <span className="score-compliance" />
-              <span className="score-focus" />
-              <span className="score-efficiency" />
-            </div>
-            <dl className="score-list">
-              <div><dt>Correctness</dt><dd>40</dd></div>
-              <div><dt>Requirements</dt><dd>25</dd></div>
-              <div><dt>Instruction compliance</dt><dd>20</dd></div>
-              <div><dt>Change focus</dt><dd>10</dd></div>
-              <div><dt>Efficiency</dt><dd>5</dd></div>
-            </dl>
-            <p>If the artifacts can't support a clean answer, the result is a limitation. That counts too.</p>
-          </div>
-        </section>
-
-        <section className="sources-section" aria-labelledby="sources-title">
-          <div className="sources-heading">
-            <p className="kicker"><span /> What Camarade reads</p>
-            <h2 id="sources-title">Context is scattered by design.</h2>
-            <p>
-              Agent rules, documentation, code, tests, and configuration all get a seat. None gets a free pass.
-            </p>
-          </div>
-          <ul className="source-list" aria-label="Repository context sources">
-            {sourceFiles.map((source, index) => (
-              <li key={source}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <code>{source}</code>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="final-cta" aria-labelledby="cta-title">
-          <p className="kicker"><span /> Open development</p>
-          <h2 id="cta-title">Put context in the build.</h2>
-          <div>
-            <p>
-              Camarade is early. The product and experiment contracts are public, runtime work comes next, and the
-              repository is open.
-            </p>
-            <ExternalLink className="final-link">Follow Camarade on GitHub</ExternalLink>
-          </div>
-        </section>
-      </main>
-
-      <footer className="site-footer">
-        <a href="#top">Camarade/</a>
-        <p>Context CI for coding agents</p>
-        <p>Stage 1: product + experiment contracts</p>
-      </footer>
+      <SiteHeader path={path} />
+      <PageContent path={path} />
+      <SiteFooter />
     </>
   );
 }

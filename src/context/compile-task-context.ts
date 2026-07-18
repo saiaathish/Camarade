@@ -59,7 +59,7 @@ function taskItem(statement: string, kind: "requirement" | "prohibition" | "path
         : kind === "acceptance"
           ? "USER_TASK_ACCEPTANCE"
           : "USER_TASK_PROHIBITION"],
-    selectionReason: "Preserved verbatim from the user-provided task."
+    selectionReason: "Preserved from the locally normalized user task; the original request remains in task provenance."
   };
 }
 

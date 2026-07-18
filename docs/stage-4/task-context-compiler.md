@@ -30,7 +30,7 @@ All Stage 4 public contracts are defined once in `src/context/context-types.ts`.
 
 ### `TaskSpecification`
 
-`originalTask` preserves the request string exactly. `normalizedTask` collapses whitespace for deterministic interpretation. `operation` is one of `add`, `fix`, `refactor`, `test`, `document`, `investigate`, or `unknown`; unsupported intent is not guessed. Domains and keywords are deterministic compiler-derived values. `explicitPaths`, `explicitRequirements`, `explicitProhibitions`, and `acceptanceHints` retain user-supplied content from the normalized task without semantic rewriting.
+`originalTask` preserves the request string exactly. `normalizedTask` collapses whitespace and applies a conservative, local English spell check before context retrieval or reasoning. Code spans, paths, URLs, flags, identifiers, acronyms, and ambiguous dictionary suggestions are not rewritten. `operation` is one of `add`, `fix`, `refactor`, `test`, `document`, `investigate`, or `unknown`; unsupported intent is not guessed. Domains, keywords, paths, requirements, prohibitions, and acceptance hints are derived deterministically from the corrected task. The raw request remains available in JSON provenance but is omitted from model-facing Markdown and reasoner requests.
 
 Unsafe absolute, traversal, URL, or glob-like task paths are not promoted as literal repository paths. Empty, whitespace-only, and actionless ambiguous tasks fail with `CONTEXT_REQUEST_INVALID` at `normalize-task`.
 

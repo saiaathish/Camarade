@@ -1,6 +1,7 @@
 import { ContextCompilationError } from "../core/errors.js";
 import type { TaskOperation, TaskSpecification } from "./context-types.js";
 import { isSafeRepositoryPath, toPosixPath } from "./context-serialization.js";
+import { correctTaskSpelling } from "./correct-task-spelling.js";
 
 const OPERATION_PATTERNS: ReadonlyArray<readonly [TaskOperation, RegExp]> = [
   ["add", /\b(?:add|build|create|implement|introduce)\b/iu],
@@ -165,7 +166,7 @@ function hasConcreteIntent(value: string, paths: readonly string[], taskKeywords
 
 export function normalizeTask(task: string): TaskSpecification {
   if (typeof task !== "string") fail("Task must be a string.", "task-not-string");
-  const normalizedTask = normalizedWhitespace(task);
+  const normalizedTask = correctTaskSpelling(normalizedWhitespace(task));
   if (normalizedTask === "") fail("Task must not be empty or whitespace-only.", "task-empty");
 
   const paths = explicitPaths(normalizedTask);

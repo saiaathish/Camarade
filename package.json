@@ -21,12 +21,15 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/nspell": "^2.1.6",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
+    "dictionary-en": "^4.0.0",
+    "nspell": "^2.1.5",
     "yaml": "^2.9.0",
     "zod": "4.4.3"
   }

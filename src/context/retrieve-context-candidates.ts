@@ -409,6 +409,7 @@ function sourcePathsFor(
 
 export function retrieveContextCandidates(input: RetrieveContextCandidatesInput): ContextCandidate[] {
   const provenance = sourcePathResolver(input);
+  const historyFindingIds = new Set(input.artifact.history.findings.map((finding) => finding.id));
   const inventoryPaths = new Set(input.inventory.files.map((file) => file.relativePath));
   const factsByPath = new Map<string, RepositoryFact[]>();
   for (const fact of input.inventory.facts) factsByPath.set(fact.relativePath, [
@@ -520,6 +521,8 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
 
   for (const finding of [...input.artifact.findings].sort((left, right) => left.id.localeCompare(right.id))) {
     if (!neighborhood.has(finding.id) && !finding.affectedRuleIds.some((id) => directIds.has(id))) continue;
+    // Git history is useful ranking evidence, but a deleted path has no repository-owned evidence span to send.
+    if (historyFindingIds.has(finding.id) && finding.evidenceIds.length === 0) continue;
     const signals = taskSignals(input.task, `${finding.summary} ${finding.explanation}`);
     if (!directIds.has(finding.id)) signals.push("EVIDENCE_GRAPH_NEIGHBOR");
     finding.affectedRuleIds.forEach((id) => signals.push(`AFFECTS_RULE:${id}`));
