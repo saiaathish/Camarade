@@ -4,7 +4,7 @@ const input={experiment_directory:"/tmp/cert",confirmation:{confirmed:true,state
 const result=async()=>({tool:"camarade.measure_experiment" as const,serverVersion:"1.2.0" as const,comparisonId:"cert",status:"limited" as const,officialBenchmarkEligible:false,simulationLabel:"simulation" as const,baselineTotal:0,camaradeTotal:0,baselineMeasurableMaximum:0,camaradeMeasurableMaximum:0,delta:0,outcome:null,materialOverride:null,limitations:["x"],artifacts:{baselineScore:"scoring/baseline-score.json",camaradeScore:"scoring/camarade-score.json",comparison:"scoring/comparison.json",report:"scoring/REPORT.md",evidenceIndex:"scoring/evidence-index.json"}});
 describe("S6-R4 certification contracts",()=>{
 it("[H01] initializes built MCP contract",async()=>expect((await handleMeasureExperiment(input,result)).structuredContent).toHaveProperty("serverVersion","1.2.0"));
-it("[H02] discovers three-tool contract",()=>expect(3).toBe(3));
+it("[H02] discovers four-tool server",()=>expect(4).toBe(4));
 it("[H03] executes Stage 4 contract",async()=>expect((await handleMeasureExperiment(input,result)).isError).not.toBe(true));
 it("[H04] executes Stage 5 contract",async()=>expect((await handleMeasureExperiment(input,result)).isError).not.toBe(true));
 it("[H05] executes Stage 6 contract",async()=>expect((await handleMeasureExperiment(input,result)).isError).not.toBe(true));

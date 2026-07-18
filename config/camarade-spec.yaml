@@ -79,7 +79,7 @@ evaluation:
   definition_version: 1
   statuses: [valid, limited, invalid]
   outcomes: [win, tie, regression]
-  mcp_tool: camarade.measure_experiment
+  mcp_tool: camarade.explain_experiment
   material_overrides: [mandatory-correctness, material-rule, mandatory-requirement]
   check_results: [pass, fail, unavailable, error]
   rule_severities: [normal, material]

@@ -15,9 +15,11 @@
     "verify:mcp:stage4": "tsx scripts/verify-stage-4-mcp.ts",
     "verify:mcp:stage5": "tsx scripts/verify-stage-5-mcp.ts",
     "verify:mcp:stage6": "npm run build && tsx scripts/verify-stage-6-mcp.ts",
+    "verify:mcp:stage7": "npm run build && tsx scripts/verify-stage-7-mcp.ts",
     "verify:mcp": "npm run verify:mcp:stage4 && npm run verify:mcp:stage5",
     "certify:stage5": "npm run build && npm run verify:mcp",
     "certify:stage6": "npm run build && tsx scripts/certify-stage-6.ts",
+    "certify:stage7": "npm run build && tsx scripts/certify-stage-7.ts",
     "certify:stage5:live": "tsx scripts/run-live-stage-5-certification.ts",
     "create:hero-fixture": "tsx scripts/create-hero-fixture.ts"
   },
