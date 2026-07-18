@@ -1,0 +1,9 @@
+import { access } from "node:fs/promises";
+import path from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+const root = path.resolve(import.meta.dirname, "..");
+const entry = path.join(root, "dist/src/mcp/start-server.js");
+const names = ["camarade.compile_task_context", "camarade.measure_experiment", "camarade.run_fair_experiment", "camarade.explain_experiment"];
+async function main() { await access(entry); const client = new Client({ name: "stage7-verifier", version: "1" }); const transport = new StdioClientTransport({ command: process.execPath, args: [entry], cwd: root, stderr: "pipe" }); try { await client.connect(transport); const listed = await client.listTools(); const actual = listed.tools.map(t => t.name).sort(); if (JSON.stringify(actual) !== JSON.stringify([...names].sort())) throw new Error("tool discovery mismatch"); if (!listed.tools.find(t => t.name === "camarade.explain_experiment")) throw new Error("explain tool missing"); for (const args of [{}, { experiment_directory: "/tmp/x", confirmation: { confirmed: true, statement: "wrong" } }, { experiment_directory: "/tmp/x", confirmation: { confirmed: true, statement: "I authorize Camarade to explain this completed experiment." }, unknown: true }]) { const response = await client.callTool({ name: "camarade.explain_experiment", arguments: args }); if (!response.isError) throw new Error("invalid request accepted"); } console.log("Stage 7 MCP verification: PASS"); console.log("Server: camarade 1.3.0"); console.log("Tools: 4"); } finally { await client.close().catch(() => undefined); await transport.close().catch(() => undefined); } }
+main().catch(() => { console.error("Stage 7 MCP verification failed."); process.exitCode = 1; });

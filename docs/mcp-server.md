@@ -35,12 +35,14 @@ An MCP client normally launches the compiled command.
 ## Server contract
 
 - Server name: `camarade`
-- Server version: `1.2.0`
+- Server version: `1.3.0`
 - Transport: stdio
 
 ## Tool contract
 
-The server exposes exactly three tools: `camarade.compile_task_context`, `camarade.run_fair_experiment`, and `camarade.measure_experiment`.
+The server exposes exactly four tools: `camarade.compile_task_context`, `camarade.run_fair_experiment`, `camarade.measure_experiment`, and `camarade.explain_experiment`.
+
+`camarade.explain_experiment` accepts exactly one locator mode and the exact confirmation statement `I authorize Camarade to explain this completed experiment.` It reads sealed Stage 4–6 artifacts through `explainCompletedExperiment`, writes canonical run-relative Stage 7 explanation artifacts, and returns compact counts, safe evidence-backed explanations, limitations, and `simulation: true`, `realModelExecuted: false`, `networkUsed: false`. It never accepts prompts or external scoring inputs, reruns an experiment, or uses an LLM judge. CLI equivalent: `camarade explain --comparison ID --controller-root ABS --confirm-explanation` or `camarade explain --experiment-directory ABS --confirm-explanation`.
 
 `camarade.measure_experiment` accepts exactly one locator mode: `comparison_id` with `controller_root`, or `experiment_directory`. It requires the exact confirmation statement `I authorize Camarade to measure this completed experiment.` It rejects unknown fields, external evaluation inputs, unsafe locators, and repeated measurements. Responses expose only experiment-relative scoring artifact paths; limited and invalid results have a null outcome. CLI equivalent: `camarade measure --comparison ID --controller-root PATH --confirm-measurement` or `camarade measure --experiment-directory PATH --confirm-measurement`.
 

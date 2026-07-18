@@ -1,1 +1,1 @@
-export const CAMARADE_MCP_INSTRUCTIONS = "Camarade has three tools. Use measure_experiment only for a completed sealed experiment and provide exact confirmation.";
+export const CAMARADE_MCP_INSTRUCTIONS = "Camarade has four tools. Use measure_experiment and explain_experiment only for completed sealed experiments and provide exact confirmation. Explanations read persisted evidence and never rerun experiments or use an LLM judge.";

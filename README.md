@@ -39,7 +39,7 @@ npm run build
 node dist/src/mcp/start-server.js
 ```
 
-MCP clients normally launch the local stdio server. The tool is `camarade.compile_task_context`. For a built-server protocol check, run `npm run verify:mcp`. See the [MCP server guide](docs/mcp-server.md) for the contract and client configuration.
+MCP clients normally launch the local stdio server. The primary tool is `camarade.compile_task_context`; the four tools are documented in [the MCP server guide](docs/mcp-server.md). For a built-server protocol check, run `npm run verify:mcp:stage7`.
 
 ## Available scripts
 
