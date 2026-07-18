@@ -16,6 +16,19 @@ npm run typecheck
 npm test
 ```
 
+### Codex plugin
+
+Install Camarade directly from this repository:
+
+```sh
+codex plugin marketplace add saiaathish/Camarade
+codex plugin add camarade@camarade
+```
+
+Start a new Codex task, select the Camarade icon in the composer, write the request naturally, and submit it. Camarade improves the task, compiles repository-specific context through its bundled local MCP server, and uses a direct, planned, or persistent workflow as appropriate.
+
+The plugin respects any model and reasoning settings the user pins. It uses Codex automatic defaults otherwise; it does not silently change the paid Fast-mode service tier or other account-level controls.
+
 The MCP interface is the primary Stage 4 integration for compiling task context. The CLI remains the developer/testing interface for compile, inspect, and evaluate workflows. Stage 2 comparison remains an independent local experiment-controller slice.
 
 ## MCP quick start
@@ -33,6 +46,8 @@ MCP clients normally launch the local stdio server. The tool is `camarade.compil
 | Script | Command | Behavior |
 |---|---|---|
 | Build | `npm run build` | Compiles TypeScript with `tsc -p tsconfig.json`. |
+| Build plugin | `npm run build:plugin` | Bundles the self-contained Camarade MCP runtime shipped in the plugin. |
+| Verify plugin | `npm run verify:plugin` | Rebuilds the plugin runtime and verifies the manifest, skill, assets, and MCP startup. |
 | Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
 | Test | `npm test` | Runs the Vitest suite once. |
 | Test watch | `npm run test:watch` | Runs Vitest in watch mode. |

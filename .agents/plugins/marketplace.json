@@ -1,0 +1,20 @@
+{
+  "name": "camarade",
+  "interface": {
+    "displayName": "Camarade"
+  },
+  "plugins": [
+    {
+      "name": "camarade",
+      "source": {
+        "source": "local",
+        "path": "./plugins/camarade"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

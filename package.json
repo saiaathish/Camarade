@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "verify:plugin": "npm run build:plugin && vitest run tests/plugin-package.test.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@types/nspell": "^2.1.6",
+    "esbuild": "0.28.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
