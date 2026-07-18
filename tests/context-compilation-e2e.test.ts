@@ -43,6 +43,24 @@ async function spellingRepository(): Promise<string> {
   return repository;
 }
 
+async function conventionRepository(): Promise<string> {
+  const root = await temporaryRoot("camarade-convention-repo-");
+  const repository = join(root, "repository");
+  await mkdir(repository, { recursive: true });
+  await writeFile(join(repository, "package.json"), '{"name":"convention-fixture","devDependencies":{"vitest":"2.1.9"}}\n');
+  return repository;
+}
+
+async function protectedDirectoryRepository(): Promise<string> {
+  const root = await temporaryRoot("camarade-protected-directory-repo-");
+  const repository = join(root, "repository");
+  await mkdir(join(repository, "examples", "template"), { recursive: true });
+  await writeFile(join(repository, "package.json"), '{"name":"protected-directory-fixture"}\n');
+  await writeFile(join(repository, "AGENTS.md"), "- Do not modify `examples/template`.\n");
+  await writeFile(join(repository, "examples", "template", "README.md"), "# Template\n");
+  return repository;
+}
+
 async function decisions(path: string): Promise<Array<{ candidateId: string; decision: string; reasonCodes: string[] }>> {
   return JSON.parse(await readFile(path, "utf8"));
 }
@@ -95,6 +113,34 @@ describe("context compilation pipeline", () => {
     expect(markdown).toContain("don't change auth");
     expect(markdown).not.toContain("limting");
     expect(markdown).not.toContain("dont change");
+  }, 20_000);
+
+  it("accepts fact-backed convention recommendations during provenance validation", async () => {
+    const repository = await conventionRepository();
+    const result = await compileContextPipeline({
+      repositoryPath: repository,
+      task: "Improve the Vitest configuration."
+    });
+    roots.push(result.controllerRoot);
+
+    expect(result.intelligenceArtifact.findings).toContainEqual(expect.objectContaining({ kind: "convention" }));
+    expect(result.intelligenceArtifact.recommendations).toContainEqual(expect.objectContaining({
+      evidenceIds: [expect.stringMatching(/^fact_/u)]
+    }));
+  }, 20_000);
+
+  it("accepts an existing protected directory as a provenance source path", async () => {
+    const repository = await protectedDirectoryRepository();
+    const result = await compileContextPipeline({
+      repositoryPath: repository,
+      task: "Improve the examples/template documentation."
+    });
+    roots.push(result.controllerRoot);
+
+    expect(result.contract.protectedFiles).toContainEqual(expect.objectContaining({
+      statement: "Do not modify `examples/template`",
+      sourcePaths: expect.arrayContaining(["AGENTS.md", "examples/template"])
+    }));
   }, 20_000);
 
   it("proves the intended hero selections, exclusions, and one unresolved policy choice", async () => {

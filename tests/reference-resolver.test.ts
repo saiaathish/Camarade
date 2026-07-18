@@ -19,8 +19,16 @@ describe("repository reference resolution", () => {
   it("REQ-REF-09 marks an unmatched repository path as missing", () => expect(one(rule("Use src/nope.ts"))[0].status).toBe("missing"));
   it("REQ-REF-10 emits a stale finding for a missing path", () => expect(resolveRuleReferences([rule("Use src/nope.ts")], inventory([])).findings[0].kind).toBe("stale-reference"));
   it("REQ-REF-11 marks an external URL without a stale finding", () => { const r = resolveRuleReferences([rule("See https://example.com/docs")], inventory([])); expect(r.references[0].status).toBe("external"); expect(r.findings).toHaveLength(0); });
-  it("REQ-REF-12 marks an absolute path as invalid", () => expect(one(rule("Use /src/a.ts"))[0].status).toBe("invalid"));
-  it("REQ-REF-13 marks parent traversal as invalid", () => expect(one(rule("Use ../src/a.ts"))[0].status).toBe("invalid"));
+  it.each(["/src/a.ts", "../src/a.ts", "/."])("REQ-REF-12 redacts an invalid path from the artifact: %s", (path) => {
+    const reference = one(rule(`Use ${path}`))[0];
+
+    expect(reference).toMatchObject({
+      status: "invalid",
+      rawReference: "<invalid-reference>",
+      normalizedPath: "<invalid-reference>"
+    });
+    expect(JSON.stringify(reference)).not.toContain(path);
+  });
   it("REQ-REF-14 marks repeated basename matches as ambiguous", () => expect(one(rule("Use a.ts"), inventory(["src/a.ts", "test/a.ts"]))[0].status).toBe("ambiguous"));
   it("REQ-REF-15 normalizes backslashes and leading dot slash", () => expect(one(rule("Use `./src\\a.ts`"))[0].normalizedPath).toBe("src/a.ts"));
   it("REQ-REF-16 deduplicates identical references for one rule", () => expect(one(rule("Use `src/a.ts` and src/a.ts")).length).toBe(1));

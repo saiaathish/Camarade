@@ -266,11 +266,13 @@ function validateLoadedArtifactIntegrity(artifact: IntelligenceArtifact): void {
       ]);
     }
   }
+  const findingsById = new Map(artifact.findings.map((finding) => [finding.id, finding]));
   for (const [index, recommendation] of artifact.recommendations.entries()) {
     oneReference(`recommendations[${index}].findingId`, recommendation.findingId, "finding");
     oneReference(`recommendations[${index}].confidenceAssessmentId`, recommendation.confidenceAssessmentId, "confidence");
     references(`recommendations[${index}].affectedRuleIds`, recommendation.affectedRuleIds, ["rule"]);
-    references(`recommendations[${index}].evidenceIds`, recommendation.evidenceIds, ["evidence"]);
+    const finding = findingsById.get(recommendation.findingId);
+    references(`recommendations[${index}].evidenceIds`, recommendation.evidenceIds, finding?.kind === "convention" ? ["fact"] : ["evidence"]);
   }
 
   const graphNodes = new Map<string, string>();
@@ -520,6 +522,7 @@ function knownSourcePaths(artifact: IntelligenceArtifact, inventory: RepositoryI
     ...artifact.sourceIndex.map((value) => value.relativePath),
     ...artifact.fileIndex.map((value) => value.relativePath),
     ...artifact.factIndex.map((value) => value.relativePath),
+    ...inventory.directories,
     ...inventory.files.map((value) => value.relativePath)
   ]);
 }

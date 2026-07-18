@@ -22,7 +22,7 @@ describe("intelligence artifact", () => {
   it("REQ-ART-09 creates a stable artifact ID for reordered input", () => expect(build().id).toBe(build().id));
   it("REQ-ART-10 preserves the exact schema version", () => expect(build().schemaVersion).toBe(INTELLIGENCE_ARTIFACT_SCHEMA_VERSION));
   it("REQ-ART-11 excludes absolute repository and temporary paths", () => expect(JSON.stringify(build())).not.toContain("/tmp/"));
-  it("REQ-ART-12 rejects unsafe artifact paths", () => expect(() => buildIntelligenceArtifact({ ...input(), inventory: { ...input().inventory, files: [{ ...input().inventory.files[0], relativePath: "../secret" }] } })).toThrow("Artifact contains unsafe path: ../secret."));
+  it("REQ-ART-12 rejects unsafe artifact paths", () => expect(() => buildIntelligenceArtifact({ ...input(), inventory: { ...input().inventory, files: [{ ...input().inventory.files[0], relativePath: "../secret" }] } })).toThrow("Artifact contains unsafe path at artifact.fileIndex[0].relativePath: ../secret."));
   it("REQ-ART-13 serializes object keys canonically", () => expect(serializeIntelligenceArtifact(build()).indexOf('"architectureDecisions"')).toBeGreaterThan(-1));
   it("REQ-ART-14 emits exactly one trailing newline and valid JSON", () => { const text=serializeIntelligenceArtifact(build()); expect(text.endsWith("\n") && !text.endsWith("\n\n")).toBe(true); expect(() => JSON.parse(text)).not.toThrow(); });
   it("REQ-ART-15 rejects non-finite numbers", () => expect(() => serializeIntelligenceArtifact({ ...build(), summary: { ...build().summary, sourceCount: Number.NaN } })).toThrow("Artifact contains a non-finite number."));

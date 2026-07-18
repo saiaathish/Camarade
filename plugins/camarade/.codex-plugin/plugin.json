@@ -1,6 +1,6 @@
 {
   "name": "camarade",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260718010557",
   "description": "Turn rough coding requests into repository-aware, execution-ready tasks.",
   "author": {
     "name": "Camarade contributors",
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/saiaathish/Camarade#readme",
   "repository": "https://github.com/saiaathish/Camarade",
   "license": "MIT",
-  "keywords": ["codex", "context", "prompt", "productivity"],
+  "keywords": [
+    "codex",
+    "context",
+    "prompt",
+    "productivity"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Camarade",
@@ -17,7 +22,9 @@
     "longDescription": "Select Camarade in the composer, write the task naturally, and submit. Camarade cleans up the request, compiles relevant repository context, and chooses a direct, planned, or persistent workflow without overriding user-pinned Codex settings.",
     "developerName": "Camarade contributors",
     "category": "Productivity",
-    "capabilities": ["Read"],
+    "capabilities": [
+      "Read"
+    ],
     "defaultPrompt": [
       "Improve this coding request and carry it out.",
       "Turn this rough idea into a concrete implementation plan.",
