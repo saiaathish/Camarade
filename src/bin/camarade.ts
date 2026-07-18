@@ -7,8 +7,8 @@ if (args.length === 0 || args[0] === "--help") {
   const json = args.includes("--json");
   const rootFlag = args.indexOf("--controller-root");
   const root = rootFlag >= 0 ? args[rootFlag + 1] : undefined;
-  const value = args[0] === "runs" ? await listRuns(root) : await showRun(args[1] ?? "", root);
-  console.log(JSON.stringify(value));
+  if (args[0] === "show") { const value = await showRun(args[1] ?? "", root); console.log(JSON.stringify(value)); }
+  else { const corrupt: string[]=[]; const value = await listRuns(root, (entry)=>corrupt.push(entry)); for(const entry of corrupt) process.stderr.write(`Warning: skipped corrupt run entry ${entry.slice(0,120)}\n`); console.log(json ? JSON.stringify(value) : ["Runs:", ...value.map((x)=>`${x.comparisonId} ${x.status} ${x.task}`), ""].join("\n")); }
   void json;
 } else {
   const { runCli } = await import("../cli.js");

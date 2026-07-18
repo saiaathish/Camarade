@@ -382,7 +382,7 @@ export async function runCli(
 ): Promise<number> {
   try {
     if (argv.length === 1 && argv[0] === "--help") { io.stdout.write(`${CLI_USAGE}\n`); return 0; }
-    if (argv[0] === "runs" || argv[0] === "show") { const json=argv.includes("--json"); const root=argv.includes("--controller-root")?argv[argv.indexOf("--controller-root")+1]:undefined; const value=argv[0]==="runs"?await listRuns(root):await showRun(argv[1]??"",root); io.stdout.write(`${JSON.stringify(value)}\n`); return 0; }
+    if (argv[0] === "runs" || argv[0] === "show") { const json=argv.includes("--json"); const root=argv.includes("--controller-root")?argv[argv.indexOf("--controller-root")+1]:undefined; if(argv[0]==="show"){const value=await showRun(argv[1]??"",root);io.stdout.write(`${JSON.stringify(value)}\n`);return 0;} const corrupt:string[]=[]; const value=await listRuns(root,n=>corrupt.push(n)); for(const n of corrupt)io.stderr.write(`Warning: skipped corrupt run entry ${n.slice(0,120)}\n`); io.stdout.write(json?`${JSON.stringify(value)}\n`:["Runs:",...value.map(x=>`${x.comparisonId} ${x.status} ${x.task}`),""].join("\n")); return 0; }
     const parsed = argv.length === 1 && argv[0] === "evaluate"
       ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
       : parseCliArgs(argv);
