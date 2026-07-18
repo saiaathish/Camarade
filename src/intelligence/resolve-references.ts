@@ -60,10 +60,11 @@ export function resolveRuleReferences(rules: readonly RepositoryRule[], inventor
     }
     const id = createStableId("reference", [rule.id, normalized, item.origins]);
     const reason = status === "current" ? "matched supplied inventory" : status === "ambiguous" ? "basename matches multiple supplied files" : status === "external" ? "external URL or protocol reference" : status === "invalid" ? "invalid repository-relative reference" : "no supplied inventory path matched";
-    const explanation = `Reference ${normalized || item.raw} is ${status}: ${reason}.`;
-    const reference = { id, ruleId: rule.id, evidenceIds: unique(rule.evidenceIds), rawReference: item.raw, normalizedPath: normalized, origins: item.origins, status, matchedPaths, explanation };
+    const artifactReference = status === "invalid" ? "<invalid-reference>" : normalized || item.raw;
+    const explanation = `Reference ${artifactReference} is ${status}: ${reason}.`;
+    const reference = { id, ruleId: rule.id, evidenceIds: unique(rule.evidenceIds), rawReference: status === "invalid" ? "<invalid-reference>" : item.raw, normalizedPath: status === "invalid" ? "<invalid-reference>" : normalized, origins: item.origins, status, matchedPaths, explanation };
     references.push(reference);
-    if (status === "missing" || status === "invalid") findings.push({ id: createStableId("finding", ["stale-reference", id, rule.id, status]), kind: "stale-reference", summary: `Stale repository reference: ${normalized || item.raw}`, evidenceIds: unique(rule.evidenceIds), affectedRuleIds: [rule.id], severity: status === "invalid" ? "error" : "warning", status: "open", explanation });
+    if (status === "missing" || status === "invalid") findings.push({ id: createStableId("finding", ["stale-reference", id, rule.id, status]), kind: "stale-reference", summary: `Stale repository reference: ${artifactReference}`, evidenceIds: unique(rule.evidenceIds), affectedRuleIds: [rule.id], severity: status === "invalid" ? "error" : "warning", status: "open", explanation });
   }
   references.sort((a, b) => a.ruleId.localeCompare(b.ruleId) || a.normalizedPath.localeCompare(b.normalizedPath) || a.id.localeCompare(b.id));
   findings.sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id));

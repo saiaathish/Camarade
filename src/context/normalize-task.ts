@@ -16,7 +16,7 @@ const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["api", /\b(?:api|endpoint|http|route handler|route)\b/iu],
   ["security", /\b(?:auth(?:entication|orization)?|permission|rate[-\s]+limit(?:ing)?|secur(?:e|ity))\b/iu],
   ["rate-limiting", /\brate[-\s]+limit(?:ing)?\b/iu],
-  ["frontend", /\b(?:accessibility|component|css|design system|frontend|html|react|ui|ux|view)\b/iu],
+  ["frontend", /\b(?:accessibility|component|composer|css|design system|frontend|html|react|ui|ux|view|website)\b/iu],
   ["backend", /\b(?:backend|controller|middleware|server|service)\b/iu],
   ["database", /\b(?:database|migration|query|schema|sql)\b/iu],
   ["testing", /\b(?:assertion|spec|test|tests|testing|vitest|jest)\b/iu],
@@ -27,20 +27,20 @@ const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
 
 const PROHIBITION = /\b(?:avoid|do not|don't|leave\b[^.!?;]*\bunchanged|must not|never|no changes? to|should not|without (?:changing|editing|modifying|touching))\b/iu;
 const ACCEPTANCE = /^(?:(?:and|but)\s+)?(?:acceptance(?: criteria)?|done when|ensure(?: that)?|success(?: criteria)?|verify(?: that)?)\b|\b(?:tests?|typecheck|validation)\s+(?:all\s+)?(?:must|should)\s+pass\b/iu;
-const ACTIONABLE = /\b(?:add|analy[sz]e|audit|build|change|configure|correct|create|debug|delete|diagnose|disable|document|enable|enforce|fix|implement|inspect|introduce|investigate|migrate|modify|move|optimi[sz]e|patch|refactor|remove|rename|repair|replace|resolve|restructure|reorganize|support|test|update|upgrade|verify|why|write)\b/iu;
+const ACTIONABLE = /\b(?:add|analy[sz]e|audit|build|change|configure|correct|create|debug|delete|diagnose|disable|document|enable|enforce|explain|expose|fix|handle|implement|improve|inspect|introduce|investigate|make|migrate|modify|move|optimi[sz]e|patch|refactor|remove|rename|repair|replace|resolve|restructure|reorganize|sharpen|support|test|update|upgrade|validate|verify|why|write)\b/iu;
 
 const STOP_WORDS = new Set([
   "a", "add", "all", "an", "and", "application", "as", "at", "be", "build", "by", "can",
-  "change", "code", "configure", "create", "do", "document", "enable", "ensure", "fix", "for",
-  "from", "implement", "in", "inspect", "introduce", "investigate", "it", "make", "modify", "of",
+  "change", "code", "configure", "create", "do", "document", "enable", "ensure", "explain", "expose", "fix", "for",
+  "from", "handle", "implement", "improve", "in", "inspect", "introduce", "investigate", "it", "make", "modify", "of",
   "must", "never", "not", "on", "or", "our", "pass", "please", "project", "refactor", "repository", "repo", "should", "something",
-  "stuff", "support", "task", "test", "tests", "that", "the", "this", "to", "update", "verify",
+  "sharpen", "stuff", "support", "task", "test", "tests", "that", "the", "this", "to", "update", "validate", "verify",
   "we", "with", "without", "work", "write", "you", "your"
 ]);
 
 const GENERIC_CONTENT = new Set([
   "app", "application", "better", "change", "code", "issue", "it", "project", "repo", "repository",
-  "something", "stuff", "task", "that", "things", "this"
+  "something", "stuff", "task", "that", "thing", "things", "this"
 ]);
 
 function fail(message: string, reason: string): never {

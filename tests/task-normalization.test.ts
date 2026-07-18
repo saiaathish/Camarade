@@ -93,6 +93,22 @@ describe("Stage 4 task normalization", () => {
     expect(result.domains).toEqual(expect.arrayContaining(["security", "rate-limiting"]));
   });
 
+  it.each([
+    "Improve the Camarade prompt normalizer and validate the plugin package.",
+    "Make the Camarade composer prompt clearer in real time.",
+    "Expose the Camarade composer icon and explain its model behavior."
+  ])("accepts prompt-assist actions with a concrete target: %s", (task) => {
+    const result = normalizeTask(task);
+
+    expect(result.keywords).toContain("camarade");
+    expect(result.explicitRequirements).toEqual([task]);
+  });
+
+  it.each(["Improve it.", "Make this better.", "Validate the thing."])(
+    "still rejects prompt-assist actions without a concrete target: %s",
+    (task) => expect(() => normalizeTask(task)).toThrow(ContextCompilationError)
+  );
+
   it("does not rewrite code spans, paths, URLs, flags, identifiers, acronyms, or ambiguous words", () => {
     const result = normalizeTask(
       "Fix teh typo in `createMesage`, src/mesage.ts, --mesage-mode, and https://example.com/mesage for API trpc support."
