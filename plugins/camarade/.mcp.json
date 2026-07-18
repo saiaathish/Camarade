@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "camarade": {
+      "command": "node",
+      "args": ["./mcp/bootstrap.mjs"],
+      "cwd": "."
+    }
+  }
+}

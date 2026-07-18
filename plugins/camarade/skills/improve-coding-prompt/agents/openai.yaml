@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve coding prompt"
+  short_description: "Turn rough requests into execution-ready tasks"
+  default_prompt: "Use $improve-coding-prompt to sharpen this request and carry it out."

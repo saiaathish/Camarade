@@ -1,0 +1,3 @@
+plugins/camarade/mcp/server.mjs linguist-generated=true -whitespace
+plugins/camarade/mcp/server.mjs.LEGAL.txt linguist-generated=true
+plugins/camarade/mcp/vendor/* linguist-vendored=true -whitespace

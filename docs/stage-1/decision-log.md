@@ -9,5 +9,6 @@
 | D-005 | No benchmark result is claimed before execution. | Avoid fabricated evidence. |
 | D-006 | Stage 6 freezes an inclusive 1.0-point tie tolerance, requires deterministic predeclared evaluation definitions, and separates valid, limited, and invalid experiment statuses. | Prevent post-result rubric changes, fabricated measurements, and unsupported benchmark winners. |
 | D-007 | Correct only high-confidence task spelling locally before context reasoning and Stage 5 execution while retaining raw task provenance. | Reduce model-facing spelling noise without spending model tokens or silently rewriting technical and ambiguous terms. |
+| D-008 | Package Camarade as a repo-marketplace Codex plugin with a composer icon, prompt-improvement skill, and bundled local MCP runtime. Keep model, reasoning, and paid speed controls caller-owned. | Make installation and task entry low-friction without claiming unsupported composer mutation or silently overriding user settings. |
 
 AI-assisted work: documents drafted and consistency-checked by Codex; no benchmark or runtime claim inferred.
