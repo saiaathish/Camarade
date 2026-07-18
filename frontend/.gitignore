@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .artifacts/
+src/generated/
 *.tsbuildinfo
 .DS_Store

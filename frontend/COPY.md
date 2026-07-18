@@ -7,7 +7,7 @@ Every heading must make sense by itself. Do not write a bold claim followed by a
 ## Shared header
 
 - Wordmark: Camarade
-- Navigation: Compiler / Compare / Evidence
+- Navigation: Compiler / Compare / Evidence / Runs
 - Action: GitHub
 
 ## Home `/`
@@ -41,7 +41,13 @@ Every heading must make sense by itself. Do not write a bold claim followed by a
 ## Evidence `/evidence/`
 
 - Headline: Camarade saves the context, code changes, tests, and run settings from both runs.
-- Integrity boundary: Camarade records the results. It does not choose a winner or create a score.
+- Integrity boundary: Camarade records matched runs, measures them deterministically, and explains the outcome when the evidence supports one. Limited or invalid evidence produces no winner.
+
+## Runs `/runs/`
+
+- Headline: Recorded runs.
+- Boundary: Simulated fixture data — not benchmark evidence.
+- Method: Camarade measures both runs deterministically and explains the outcome when the evidence supports one. Limited or invalid evidence produces no winner.
 
 ## Shared footer
 

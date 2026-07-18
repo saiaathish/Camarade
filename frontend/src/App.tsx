@@ -1,5 +1,7 @@
 import { ContextDiff } from "./components/ContextDiff";
 import { ExperimentFlow } from "./components/ExperimentFlow";
+import { DashboardRunList } from "./dashboard/DashboardRunList";
+import { DashboardRunDetail } from "./dashboard/DashboardRunDetail";
 
 const GITHUB_URL = "https://github.com/saiaathish/Camarade";
 
@@ -7,6 +9,7 @@ const navigation = [
   { href: "/compiler/", label: "Compiler", path: "/compiler" },
   { href: "/experiment/", label: "Compare", path: "/experiment" },
   { href: "/evidence/", label: "Evidence", path: "/evidence" },
+  { href: "/runs/", label: "Runs", path: "/runs" },
 ] as const;
 
 const sourceFiles = [
@@ -30,7 +33,7 @@ const evidenceBoundaries = [
   "Both runs use the same commit, task, model, permissions, environment, and tests.",
   "You see the setup and approve it before either run starts.",
   "Only the context changes between the two runs.",
-  "Camarade records what happened without choosing a winner or inventing a score.",
+  "Camarade measures both runs deterministically and explains the outcome when the evidence supports one. Limited or invalid evidence produces no winner.",
 ];
 
 function currentPath() {
@@ -54,11 +57,14 @@ function SiteHeader({ path }: { path: string }) {
         Camarade<span aria-hidden="true">/</span>
       </a>
       <nav aria-label="Primary navigation">
-        {navigation.map((item) => (
-          <a href={item.href} aria-current={path === item.path ? "page" : undefined} key={item.path}>
-            {item.label}
-          </a>
-        ))}
+        {navigation.map((item) => {
+          const isActive = item.path === "/runs" ? path === "/runs" || path.startsWith("/runs/") : path === item.path;
+          return (
+            <a href={item.href} aria-current={isActive ? "page" : undefined} key={item.path}>
+              {item.label}
+            </a>
+          );
+        })}
       </nav>
       <ExternalLink className="header-github">GitHub</ExternalLink>
     </header>
@@ -195,7 +201,7 @@ function ExperimentPage() {
         </div>
         <div className="evidence-contract">
           <ArtifactList />
-          <p className="evidence-note">Camarade records the results. It does not choose a winner or create a score.</p>
+          <p className="evidence-note">Camarade records matched runs, measures them deterministically, and explains the outcome when the evidence supports one. Limited or invalid evidence produces no winner.</p>
         </div>
       </section>
 
@@ -242,6 +248,8 @@ function PageContent({ path }: { path: string }) {
   if (path === "/compiler") return <CompilerPage />;
   if (path === "/experiment") return <ExperimentPage />;
   if (path === "/evidence") return <EvidencePage />;
+  if (path === "/runs") return <DashboardRunList />;
+  if (path.startsWith("/runs/")) return <DashboardRunDetail comparisonIdSegment={path.slice("/runs/".length)} />;
   return <HomePage />;
 }
 
