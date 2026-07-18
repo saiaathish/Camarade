@@ -14,7 +14,25 @@ const routeCases = [
   { path: "/experiment/", label: "Compare", file: "experiment" },
   { path: "/evidence/", label: "Evidence", file: "evidence" },
 ];
-const routeUrl = (pathname) => new URL(pathname, baseUrl).href;
+const dashboardCases = [
+  { path: "/runs/", file: "runs-list", kind: "list" },
+  { path: "/runs/win-001/", file: "run-win", kind: "detail", id: "win-001", outcome: "Camarade wins" },
+  { path: "/runs/tie-001/", file: "run-tie", kind: "detail", id: "tie-001", outcome: "Tie" },
+  { path: "/runs/regression-001/", file: "run-regression", kind: "detail", id: "regression-001", outcome: "Camarade regression" },
+  { path: "/runs/limited-001/", file: "run-limited", kind: "detail", id: "limited-001", outcome: "No outcome — limited evidence", noWinner: true, expectUnavailable: true },
+  { path: "/runs/invalid-001/", file: "run-invalid", kind: "detail", id: "invalid-001", outcome: "No outcome — invalid experiment", noWinner: true },
+  { path: "/runs/running-001/", file: "run-running", kind: "detail", id: "running-001", outcome: "Evaluation running", noWinner: true },
+  { path: "/runs/failed-001/", file: "run-failed", kind: "detail", id: "failed-001", outcome: "Evaluation failed", noWinner: true },
+  { path: "/runs/unknown-comparison/", file: "run-unknown", kind: "not-found", id: "unknown-comparison" },
+  { path: "/runs/..%2Fetc/", file: "run-unsafe", kind: "unsafe" },
+  { path: "/runs/?fixture=empty", file: "runs-list-empty", kind: "empty-list" },
+];
+const desktopDashboardScreenshots = new Set(["runs-list", "run-win", "run-regression", "run-limited"]);
+const routeUrl = (pathname) => {
+  const url = new URL(pathname, baseUrl);
+  if (url.pathname.startsWith("/runs/") && !url.searchParams.has("fixture")) url.searchParams.set("fixture", "all");
+  return url.href;
+};
 
 await mkdir(outputDir, { recursive: true });
 
@@ -40,6 +58,8 @@ const report = {
   compressionAnimation: {},
   routes: {},
   mobileRoutes: {},
+  dashboard: {},
+  dashboardViewports: {},
   keyboardPath: [],
   axe: [],
 };
@@ -95,6 +115,42 @@ async function inspectPage(page, bucket) {
       activeNavigation: document.querySelector('nav a[aria-current="page"]')?.textContent?.trim() ?? null,
     })),
   );
+}
+
+async function inspectDashboard(page) {
+  const report = {};
+  await inspectPage(page, report);
+  Object.assign(
+    report,
+    await page.evaluate(() => {
+      const bodyText = document.body.innerText;
+      const texts = (selector) => [...document.querySelectorAll(selector)].map((el) => el.textContent?.trim() ?? "");
+      const headingLevels = [...document.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
+        Number(heading.tagName.slice(1)),
+      );
+      const headingOrderValid =
+        headingLevels.length > 0 &&
+        headingLevels[0] === 1 &&
+        headingLevels.every((level, index) => index === 0 || level <= headingLevels[index - 1] + 1);
+      const h3Texts = texts("h3");
+      return {
+        h1Count: document.querySelectorAll("h1").length,
+        headingOrderValid,
+        disclaimerPresent: bodyText.includes("Simulated fixture"),
+        baselineHeadingPresent: h3Texts.some((text) => text.startsWith("Baseline")),
+        camaradeHeadingPresent: h3Texts.some((text) => text.startsWith("Camarade")),
+        outcomeLabels: texts(".outcome-label"),
+        comparisonIds: texts(".comparison-id-value"),
+        zeroScoreValues: texts(".score-value").filter((value) => value === "0").length,
+        unavailableLabels: texts(".score-value--empty").length,
+        winnerTextPresent: bodyText.includes("Camarade wins"),
+        mentionsFixtureRepo: bodyText.includes("fictional-repository"),
+        stateKind: document.querySelector(".dashboard-state")?.getAttribute("data-state") ?? null,
+        runSectionCount: document.querySelectorAll(".run-section").length,
+      };
+    }),
+  );
+  return report;
 }
 
 const desktopContext = await browser.newContext({
@@ -157,6 +213,25 @@ await desktopPage.locator(".diff-section").scrollIntoViewIfNeeded();
 await desktopPage.waitForTimeout(550);
 await desktopPage.screenshot({ path: path.join(outputDir, `desktop-diff-${label}.png`) });
 
+for (const dashboardCase of dashboardCases) {
+  await desktopPage.goto(routeUrl(dashboardCase.path), { waitUntil: "networkidle" });
+  await desktopPage.waitForTimeout(300);
+  report.dashboard[dashboardCase.file] = await inspectDashboard(desktopPage);
+  if (desktopDashboardScreenshots.has(dashboardCase.file)) {
+    await desktopPage.evaluate(() => window.scrollTo(0, 0));
+    await desktopPage.waitForTimeout(120);
+    await desktopPage.screenshot({
+      path: path.join(outputDir, `desktop-${dashboardCase.file}-${label}.png`),
+      fullPage: true,
+    });
+  }
+}
+
+await desktopPage.goto(routeUrl("/runs/win-001/"), { waitUntil: "networkidle" });
+await desktopPage.locator("#instruction-impact").scrollIntoViewIfNeeded();
+await desktopPage.waitForTimeout(400);
+await desktopPage.screenshot({ path: path.join(outputDir, `desktop-run-impact-${label}.png`) });
+
 await desktopPage.goto(baseUrl, { waitUntil: "networkidle" });
 for (let index = 0; index < 9; index += 1) {
   await desktopPage.keyboard.press("Tab");
@@ -172,7 +247,7 @@ for (let index = 0; index < 9; index += 1) {
   );
 }
 
-for (const pathname of ["/", ...routeCases.map((routeCase) => routeCase.path)]) {
+for (const pathname of ["/", ...routeCases.map((routeCase) => routeCase.path), ...dashboardCases.map((dashboardCase) => dashboardCase.path)]) {
   await desktopPage.goto(routeUrl(pathname), { waitUntil: "networkidle" });
   await desktopPage.addScriptTag({ path: axePath });
   const violations = await desktopPage.evaluate(async () => {
@@ -215,12 +290,28 @@ for (const routeCase of routeCases) {
   await inspectPage(mobilePage, routeReport);
   report.mobileRoutes[routeCase.label] = routeReport;
 }
+for (const mobileDashboardCase of [
+  { path: "/runs/", file: "mobile-runs-list" },
+  { path: "/runs/win-001/", file: "mobile-run-win" },
+  { path: "/runs/limited-001/", file: "mobile-run-limited" },
+]) {
+  await mobilePage.goto(routeUrl(mobileDashboardCase.path), { waitUntil: "networkidle" });
+  await mobilePage.waitForTimeout(300);
+  const mobileDashboardReport = await inspectDashboard(mobilePage);
+  report.dashboardViewports[mobileDashboardCase.file] = mobileDashboardReport;
+  await mobilePage.evaluate(() => window.scrollTo(0, 0));
+  await mobilePage.waitForTimeout(120);
+  await mobilePage.screenshot({
+    path: path.join(outputDir, `${mobileDashboardCase.file}-${label}.png`),
+    fullPage: true,
+  });
+}
 await mobileContext.close();
 
 for (const viewportCase of [
-  { key: "narrow", width: 320, height: 800, file: "narrow" },
-  { key: "intermediate", width: 768, height: 1024, file: "intermediate" },
-  { key: "zoomEquivalent", width: 640, height: 450, file: "zoom-200" },
+  { key: "narrow", width: 320, height: 800, file: "narrow", dashboardFile: "narrow-run-win" },
+  { key: "intermediate", width: 768, height: 1024, file: "intermediate", dashboardFile: "tablet-run-win" },
+  { key: "zoomEquivalent", width: 640, height: 450, file: "zoom-200", dashboardFile: "zoom-200-run-win" },
 ]) {
   const context = await browser.newContext({
     viewport: { width: viewportCase.width, height: viewportCase.height },
@@ -236,6 +327,15 @@ for (const viewportCase of [
   await page.waitForTimeout(120);
   await page.screenshot({
     path: path.join(outputDir, `${viewportCase.file}-full-${label}.png`),
+    fullPage: true,
+  });
+  await page.goto(routeUrl("/runs/win-001/"), { waitUntil: "networkidle" });
+  await page.waitForTimeout(300);
+  report.dashboardViewports[viewportCase.dashboardFile] = await inspectDashboard(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(120);
+  await page.screenshot({
+    path: path.join(outputDir, `${viewportCase.dashboardFile}-${label}.png`),
     fullPage: true,
   });
   await context.close();
@@ -256,6 +356,16 @@ report.reducedMotion = await reducedPage.evaluate(() => ({
   storyHeight: getComputedStyle(document.querySelector(".context-scroll-story")).height,
 }));
 await reducedPage.screenshot({ path: path.join(outputDir, `reduced-hero-${label}.png`) });
+await reducedPage.goto(routeUrl("/runs/win-001/"), { waitUntil: "networkidle" });
+await reducedPage.waitForTimeout(300);
+report.reducedMotionDashboard = await reducedPage.evaluate(() => ({
+  sectionCount: document.querySelectorAll(".run-section").length,
+  firstSectionOpacity: getComputedStyle(document.querySelector(".run-section")).opacity,
+  disclaimerPresent: document.body.innerText.includes("Simulated fixture"),
+  horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  svgCount: document.querySelectorAll("svg").length,
+}));
+await reducedPage.screenshot({ path: path.join(outputDir, `reduced-motion-run-win-${label}.png`), fullPage: true });
 await reducedContext.close();
 report.diagnostics = {
   consoleErrorCount: report.consoleErrors.length,
@@ -265,7 +375,17 @@ report.diagnostics = {
 };
 
 const routeReports = [...Object.values(report.routes), ...Object.values(report.mobileRoutes)];
-const viewportReports = [report.desktop, report.mobile, report.narrow, report.intermediate, report.zoomEquivalent, ...routeReports];
+const dashboardReports = Object.values(report.dashboard);
+const viewportReports = [
+  report.desktop,
+  report.mobile,
+  report.narrow,
+  report.intermediate,
+  report.zoomEquivalent,
+  ...routeReports,
+  ...dashboardReports,
+  ...Object.values(report.dashboardViewports),
+];
 const failures = [];
 
 if (report.consoleErrors.length) failures.push("console errors");
@@ -286,6 +406,50 @@ if (report.reducedMotion.rawOpacity !== "1" || report.reducedMotion.cleanOpacity
 if (report.compressionAnimation.start?.phase !== "original") failures.push("compression animation does not start with original context");
 if (report.compressionAnimation.middle?.phase !== "cleaning") failures.push("compression animation does not expose a cleaning phase");
 if (report.compressionAnimation.end?.phase !== "compressed") failures.push("compression animation does not finish with compressed context");
+
+for (const dashboardCase of dashboardCases) {
+  const entry = report.dashboard[dashboardCase.file];
+  if (!entry) {
+    failures.push(`dashboard route ${dashboardCase.file} was not inspected`);
+    continue;
+  }
+  if (entry.activeNavigation !== "Runs") failures.push(`${dashboardCase.file}: Runs navigation not active`);
+  if (entry.h1Count !== 1 || !entry.headingOrderValid) failures.push(`${dashboardCase.file}: invalid heading order`);
+  if (!entry.disclaimerPresent) failures.push(`${dashboardCase.file}: fixture disclaimer missing`);
+  if (dashboardCase.kind === "list" && !entry.comparisonIds.includes("win-001")) {
+    failures.push("runs-list: fixture runs missing");
+  }
+  if (dashboardCase.kind === "detail") {
+    if (!entry.baselineHeadingPresent) failures.push(`${dashboardCase.file}: Baseline heading missing`);
+    if (!entry.camaradeHeadingPresent) failures.push(`${dashboardCase.file}: Camarade heading missing`);
+    if (!entry.comparisonIds.includes(dashboardCase.id)) failures.push(`${dashboardCase.file}: comparison ID missing`);
+    if (!entry.outcomeLabels.includes(dashboardCase.outcome)) {
+      failures.push(`${dashboardCase.file}: expected outcome label ${JSON.stringify(dashboardCase.outcome)}`);
+    }
+    if (dashboardCase.noWinner && entry.winnerTextPresent) failures.push(`${dashboardCase.file}: shows a winner`);
+    if (dashboardCase.expectUnavailable && (entry.zeroScoreValues !== 0 || entry.unavailableLabels < 1)) {
+      failures.push(`${dashboardCase.file}: unavailable value displayed as zero`);
+    }
+    if (entry.runSectionCount !== 7) failures.push(`${dashboardCase.file}: expected 7 run sections`);
+  }
+  if (dashboardCase.kind === "not-found" && (entry.stateKind !== "not-found" || entry.mentionsFixtureRepo)) {
+    failures.push("run-unknown: not-found state incorrect");
+  }
+  if (dashboardCase.kind === "unsafe" && (entry.stateKind !== "unsafe" || entry.mentionsFixtureRepo)) {
+    failures.push("run-unsafe: unsafe-ID state renders fixture data");
+  }
+  if (dashboardCase.kind === "empty-list" && entry.stateKind !== "empty-list") {
+    failures.push("runs-list-empty: empty state missing");
+  }
+}
+if (report.reducedMotionDashboard?.sectionCount !== 7 || report.reducedMotionDashboard?.firstSectionOpacity !== "1") {
+  failures.push("reduced-motion dashboard hides run sections");
+}
+if (report.reducedMotionDashboard && !report.reducedMotionDashboard.disclaimerPresent) {
+  failures.push("reduced-motion dashboard: fixture disclaimer missing");
+}
+if (report.reducedMotionDashboard?.horizontalOverflow) failures.push("reduced-motion dashboard horizontal overflow");
+if (report.reducedMotionDashboard?.svgCount !== 0) failures.push("reduced-motion dashboard SVG elements present");
 
 report.failures = failures;
 const serializedReport = `${JSON.stringify(report, null, 2)}\n`;

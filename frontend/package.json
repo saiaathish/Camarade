@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc --noEmit",
+    "dev": "node scripts/generate-dashboard-fixtures.mjs && vite",
+    "build": "node scripts/generate-dashboard-fixtures.mjs && tsc -b && vite build",
+    "typecheck": "node scripts/generate-dashboard-fixtures.mjs && tsc --noEmit",
+    "generate:dashboard-fixtures": "node scripts/generate-dashboard-fixtures.mjs",
     "preview": "vite preview",
-    "qa:visual": "node scripts/visual-qa.mjs after"
+    "qa:visual": "node scripts/visual-qa.mjs after",
+    "qa:local-api": "../node_modules/.bin/tsx scripts/local-api-qa.mjs"
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.2.8",
