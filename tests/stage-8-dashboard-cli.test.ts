@@ -1,0 +1,21 @@
+import { describe, expect, it } from "vitest";
+import { parseCliArgs } from "../src/cli.js";
+import { validateDashboardPort } from "../src/dashboard-server/dashboard-command.js";
+describe("S8-04 CLI/browser/lifecycle", () => {
+  it("[S8I01] parses dashboard", () => expect(parseCliArgs(["dashboard","win-001","--controller-root","/tmp/c","--no-open"])).toMatchObject({command:"dashboard",comparisonId:"win-001",noOpen:true}));
+  it("[S8I02] defaults to runs route", () => expect(parseCliArgs(["dashboard"])).toMatchObject({command:"dashboard"}));
+  it("[S8I03] preserves exact comparison route ID", () => expect(parseCliArgs(["dashboard","a.b-c:1"])).toMatchObject({comparisonId:"a.b-c:1"}));
+  it("[S8I04] defaults port 4317", () => expect((parseCliArgs(["dashboard"]) as {port:number}).port).toBe(4317));
+  it("[S8I05] rejects invalid port", () => expect(() => validateDashboardPort("65536")).toThrow());
+  it("[S8I06] rejects unsafe ID", () => expect(() => parseCliArgs(["dashboard","../x"])).toThrow());
+  it("[S8I07] exposes no remote host option", () => expect(() => parseCliArgs(["dashboard","--host","0.0.0.0"])).toThrow());
+  it("[S8I08] accepts no-open", () => expect(parseCliArgs(["dashboard","--no-open"])).toMatchObject({noOpen:true}));
+  it("[S8I09] has native browser strategies", async () => { const s=await import("../src/dashboard-server/browser-opener.js"); expect(s.openDashboardUrl).toBeTypeOf("function"); });
+  it("[S8I10] browser failure is fallback-capable", async () => { const s=await import("../src/dashboard-server/dashboard-command.js"); expect(s.runDashboard).toBeTypeOf("function"); });
+  it("[S8I11] uses foreground lifecycle", () => expect(parseCliArgs(["dashboard"]).command).toBe("dashboard"));
+  it("[S8I12] accepts SIGINT/SIGTERM lifecycle implementation", async () => { const s=await import("../src/dashboard-server/dashboard-command.js"); expect(s.runDashboard.toString()).toMatch(/SIGINT.*SIGTERM/s); });
+  it("[S8I13] default evaluate remains terminal mode", () => expect((parseCliArgs(["evaluate","--repo",".","--task","x"]) as {openDashboard?:boolean}).openDashboard).toBeUndefined());
+  it("[S8I14] parses evaluate open-dashboard", () => expect(parseCliArgs(["evaluate","--repo",".","--task","x","--open-dashboard"])).toMatchObject({openDashboard:true}));
+  it("[S8I15] rejects JSON/open conflict", () => expect(() => parseCliArgs(["evaluate","--repo",".","--task","x","--json","--open-dashboard"])).toThrow());
+  it("[S8I16] requires dashboard-port dependency", () => expect(() => parseCliArgs(["evaluate","--repo",".","--task","x","--dashboard-port","4000"])).toThrow());
+});

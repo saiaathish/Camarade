@@ -1898,6 +1898,8 @@ a:focus-visible .external-arrow {
 .dashboard-state .button {
   margin-top: 26px;
 }
+.dashboard-retry { min-width: 44px; min-height: 44px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .dashboard-retry { transition: none; } }
 
 .dashboard-state .fixture-disclaimer {
   display: block;

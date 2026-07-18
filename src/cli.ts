@@ -20,6 +20,7 @@ import { EXPLAIN_CONFIRMATION } from "./mcp/tools/explain-experiment-schema.js";
 import { evaluateTask } from "./evaluate/evaluate-task.js";
 import { listRuns, showRun } from "./evaluate/run-store.js";
 import { renderDashboardRun } from "./evaluate/render-dashboard-run.js";
+import { runDashboard, validateDashboardPort } from "./dashboard-server/dashboard-command.js";
 
 const AVAILABLE_ADAPTERS = ["fixture", "command"] as const;
 const SINGLE_VALUE_FLAGS = new Set([
@@ -58,7 +59,7 @@ export interface ParsedCliOptions {
   timeoutSeconds?: number;
   command?: { executable: string; args: string[] };
 }
-export interface ParsedPipelineOptions { command: "evaluate-task"; repositoryPath: string; task?: string; taskFile?: string; controllerRoot?: string; confirmExecution: boolean; json: boolean }
+export interface ParsedPipelineOptions { command: "evaluate-task"; repositoryPath: string; task?: string; taskFile?: string; controllerRoot?: string; confirmExecution: boolean; json: boolean; openDashboard?: boolean; dashboardPort?: number }
 
 export interface ParsedInspectOptions {
   command: "inspect";
@@ -90,8 +91,9 @@ export interface ParsedCompileOptions {
 }
 export interface ParsedMeasureOptions { command:"measure"; comparisonId?:string; controllerRoot?:string; experimentDirectory?:string; confirmMeasurement:true }
 export interface ParsedExplainOptions { command:"explain"; comparisonId?:string; controllerRoot?:string; experimentDirectory?:string; confirmExplanation:true }
+export interface ParsedDashboardOptions { command:"dashboard"; comparisonId?:string; controllerRoot?:string; port:number; noOpen:boolean }
 
-export type ParsedCommandOptions = ParsedCliOptions | ParsedPipelineOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions | ParsedMeasureOptions | ParsedExplainOptions;
+export type ParsedCommandOptions = ParsedCliOptions | ParsedPipelineOptions | ParsedInspectOptions | ParsedArtifactEvaluateOptions | ParsedCompileOptions | ParsedMeasureOptions | ParsedExplainOptions | ParsedDashboardOptions;
 
 export interface CliIo {
   stdout: { write(content: string): unknown };
@@ -152,6 +154,12 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
     if (explain && ((controllerRoot !== undefined && !path.isAbsolute(controllerRoot)) || (experimentDirectory !== undefined && !path.isAbsolute(experimentDirectory)))) throw new CliUsageError("Explain locators must be absolute paths.");
     return {command: argv[0],...(comparisonId===undefined?{}:{comparisonId}),...(controllerRoot===undefined?{}:{controllerRoot:resolve(cwd,controllerRoot)}),...(experimentDirectory===undefined?{}:{experimentDirectory:resolve(cwd,experimentDirectory)}),...(explain?{confirmExplanation:true}:{confirmMeasurement:true})} as ParsedExplainOptions | ParsedMeasureOptions;
   }
+  if (argv[0] === "dashboard") {
+    let id: string|undefined, root: string|undefined, port: string|undefined, noOpen=false;
+    for(let i=1;i<argv.length;i++){const f=argv[i]!; if(f==="--no-open"){if(noOpen)throw new CliUsageError("Duplicate flag: --no-open.");noOpen=true;continue;} if(f==="--controller-root"||f==="--port"){if(i+1>=argv.length)throw new CliUsageError(`Flag ${f} requires a value.`); if(f==="--controller-root")root=requiredValue(argv,i,f); else port=requiredValue(argv,i,f); i++;continue;} if(f.startsWith("--"))throw new CliUsageError(`Unknown flag: ${f}.`); if(id!==undefined)throw new CliUsageError("Only one comparison ID is allowed."); id=f; }
+    if(id!==undefined&&!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(id))throw new CliUsageError("Unsafe comparison ID.");
+    return {command:"dashboard",...(id?{comparisonId:id}:{}),...(root?{controllerRoot:resolve(cwd,root)}:{}),port:validateDashboardPort(port),noOpen};
+  }
   if (argv[0] === "inspect") return parseInspectArgs(argv, cwd);
   if (argv[0] === "compile") return parseCompileArgs(argv, cwd);
   if (argv.length === 1 && argv[0] === "evaluate") throw new CliUsageError("Missing evaluation artifact options.");
@@ -161,10 +169,11 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
 
   const hasLegacy = argv.some(flag => ["--adapter", "--command-executable", "--command-arg", "--timeout"].includes(flag));
   if (!hasLegacy && argv.some(flag => ["--task", "--task-file"].includes(flag))) {
-    const allowed = new Set(["--repo", "--task", "--task-file", "--controller-root", "--confirm-execution", "--json"]); const values = new Map<string,string>(); let confirm=false, json=false;
-    for (let i=1;i<argv.length;i+=1) { const flag=argv[i]!; if(flag === "--confirm-execution"){if(confirm)throw new CliUsageError("Duplicate flag: --confirm-execution.");confirm=true;continue;} if(flag === "--json"){if(json)throw new CliUsageError("Duplicate flag: --json.");json=true;continue;} if(!allowed.has(flag))throw new CliUsageError(`Unknown flag: ${flag}.`); if(values.has(flag))throw new CliUsageError(`Duplicate flag: ${flag}.`); values.set(flag,requiredValue(argv,i,flag)); i+=1; }
+    const allowed = new Set(["--repo", "--task", "--task-file", "--controller-root", "--confirm-execution", "--json", "--open-dashboard", "--dashboard-port"]); const values = new Map<string,string>(); let confirm=false, json=false, open=false;
+    for (let i=1;i<argv.length;i+=1) { const flag=argv[i]!; if(flag === "--confirm-execution"){if(confirm)throw new CliUsageError("Duplicate flag: --confirm-execution.");confirm=true;continue;} if(flag === "--json"){if(json)throw new CliUsageError("Duplicate flag: --json.");json=true;continue;} if(flag === "--open-dashboard"){if(open)throw new CliUsageError("Duplicate flag: --open-dashboard.");open=true;continue;} if(!allowed.has(flag))throw new CliUsageError(`Unknown flag: ${flag}.`); if(values.has(flag))throw new CliUsageError(`Duplicate flag: ${flag}.`); values.set(flag,requiredValue(argv,i,flag)); i+=1; }
     const task=values.get("--task"), taskFile=values.get("--task-file"); if((task===undefined)===(taskFile===undefined))throw new CliUsageError("Exactly one of --task or --task-file is required."); if(task?.trim()==="")throw new CliUsageError("--task must be non-empty.");
-    return {command:"evaluate-task", repositoryPath:resolve(cwd,values.get("--repo")??"."), ...(task===undefined?{}:{task:task.trim()}), ...(taskFile===undefined?{}:{taskFile:resolve(cwd,taskFile)}), ...(values.get("--controller-root")===undefined?{}:{controllerRoot:resolve(cwd,values.get("--controller-root")!)}), confirmExecution:confirm, json};
+    if(open&&json)throw new CliUsageError("--json cannot be combined with --open-dashboard."); const dp=values.get("--dashboard-port"); if(dp!==undefined&&!open)throw new CliUsageError("--dashboard-port requires --open-dashboard.");
+    return {command:"evaluate-task", repositoryPath:resolve(cwd,values.get("--repo")??"."), ...(task===undefined?{}:{task:task.trim()}), ...(taskFile===undefined?{}:{taskFile:resolve(cwd,taskFile)}), ...(values.get("--controller-root")===undefined?{}:{controllerRoot:resolve(cwd,values.get("--controller-root")!)}), confirmExecution:confirm, json, ...(open?{openDashboard:true,dashboardPort:validateDashboardPort(dp)}:{})} as ParsedPipelineOptions;
   }
 
   if (!argv.some(flag => ["--task", "--task-file", "--adapter", "--controller-root", "--command-executable", "--command-arg", "--timeout"].includes(flag))) {
@@ -382,16 +391,19 @@ export async function runCli(
 ): Promise<number> {
   try {
     if (argv.length === 1 && argv[0] === "--help") { io.stdout.write(`${CLI_USAGE}\n`); return 0; }
+    if (argv[0] === "dashboard") { const parsed = parseCliArgs(argv) as ParsedDashboardOptions; return await runDashboard(parsed, { stdout: s => io.stdout.write(s), stderr: s => io.stderr.write(s) }); }
     if (argv[0] === "runs" || argv[0] === "show") { const json=argv.includes("--json"); const root=argv.includes("--controller-root")?argv[argv.indexOf("--controller-root")+1]:undefined; if(argv[0]==="show"){const value=await showRun(argv[1]??"",root);io.stdout.write(`${JSON.stringify(value)}\n`);return 0;} const corrupt:string[]=[]; const value=await listRuns(root,n=>corrupt.push(n)); for(const n of corrupt)io.stderr.write(`Warning: skipped corrupt run entry ${n.slice(0,120)}\n`); io.stdout.write(json?`${JSON.stringify(value)}\n`:["Runs:",...value.map(x=>`${x.comparisonId} ${x.status} ${x.task}`),""].join("\n")); return 0; }
     const parsed = argv.length === 1 && argv[0] === "evaluate"
       ? { command: "evaluate-artifact" as const, repositoryPath: process.cwd(), artifact: DEFAULT_INTELLIGENCE_ARTIFACT_PATH, json: false }
       : parseCliArgs(argv);
+    if (parsed.command === "dashboard") return await runDashboard(parsed, { stdout: s => io.stdout.write(s), stderr: s => io.stderr.write(s) });
     if (parsed.command === "measure") {
       const result=await measureCompletedExperiment({comparisonId:parsed.comparisonId,controllerRoot:parsed.controllerRoot,experimentDirectory:parsed.experimentDirectory}); io.stdout.write(`${JSON.stringify(result)}\n`); return 0;
     }
     if (parsed.command === "evaluate-task") {
       const run = await evaluateTask(parsed);
       if (parsed.json) io.stdout.write(`${JSON.stringify(run)}\n`); else io.stdout.write(renderDashboardRun(run));
+      if (parsed.openDashboard) return await runDashboard({ comparisonId: run.comparisonId, controllerRoot: parsed.controllerRoot, port: parsed.dashboardPort, noOpen: false }, { stdout: s => io.stdout.write(s), stderr: s => io.stderr.write(s) });
       return run.status === "failed" ? 1 : 0;
     }
     if (parsed.command === "explain") {

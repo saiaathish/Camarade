@@ -28,7 +28,11 @@ const dashboardCases = [
   { path: "/runs/?fixture=empty", file: "runs-list-empty", kind: "empty-list" },
 ];
 const desktopDashboardScreenshots = new Set(["runs-list", "run-win", "run-regression", "run-limited"]);
-const routeUrl = (pathname) => new URL(pathname, baseUrl).href;
+const routeUrl = (pathname) => {
+  const url = new URL(pathname, baseUrl);
+  if (url.pathname.startsWith("/runs/") && !url.searchParams.has("fixture")) url.searchParams.set("fixture", "all");
+  return url.href;
+};
 
 await mkdir(outputDir, { recursive: true });
 

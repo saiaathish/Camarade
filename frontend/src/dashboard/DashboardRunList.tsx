@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createDashboardDataSource } from "./fixture-dashboard-data-source";
+import { DashboardApiError } from "./dashboard-data-source";
 import type { DashboardConditionName, DashboardRunSummary } from "./dashboard-types";
 import {
   DASHBOARD_FIXTURE_LIST_NOTICE,
@@ -9,7 +10,7 @@ import {
   simulationStateLabel,
   statusLabel,
 } from "./dashboard-format";
-import { DashboardEmptyRunList, DashboardLoading } from "./DashboardState";
+import { DashboardEmptyRunList, DashboardLoading, DashboardUnavailable } from "./DashboardState";
 
 interface RunListEntry {
   summary: DashboardRunSummary;
@@ -20,7 +21,8 @@ interface RunListEntry {
 
 type ListState =
   | { kind: "loading" }
-  | { kind: "ready"; runs: RunListEntry[] };
+  | { kind: "ready"; runs: RunListEntry[] }
+  | { kind: "error"; invalid: boolean };
 
 function RunRow({ entry }: { entry: RunListEntry }) {
   const { summary } = entry;
@@ -61,6 +63,18 @@ function RunRow({ entry }: { entry: RunListEntry }) {
 export function DashboardRunList() {
   const dataSource = useMemo(() => createDashboardDataSource(window.location.search), []);
   const [state, setState] = useState<ListState>({ kind: "loading" });
+  const fixtureMode = ["all", "empty"].includes(new URLSearchParams(window.location.search).get("fixture") ?? "");
+  const loadRuns = async () => {
+    try {
+      const summaries = await dataSource.listRuns();
+      const runs = await Promise.all(summaries.map(async (summary) => {
+        const run = await dataSource.getRun(summary.comparisonId);
+        const conditionSummary = (name: DashboardConditionName) => run.conditions.find((c) => c.condition === name)?.summary ?? "";
+        return { summary, baselineSummary: conditionSummary("baseline"), camaradeSummary: conditionSummary("camarade"), simulation: run.simulation };
+      }));
+      setState({ kind: "ready", runs });
+    } catch (error) { setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" }); }
+  };
 
   useEffect(() => {
     document.title = "Runs — Camarade";
@@ -69,6 +83,7 @@ export function DashboardRunList() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      try {
       const summaries = await dataSource.listRuns();
       const conditionSummary = (runConditions: Awaited<ReturnType<typeof dataSource.getRun>>["conditions"], name: DashboardConditionName) =>
         runConditions.find((condition) => condition.condition === name)?.summary ?? "";
@@ -84,6 +99,7 @@ export function DashboardRunList() {
         }),
       );
       if (!cancelled) setState({ kind: "ready", runs });
+      } catch (error) { if (!cancelled) setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" }); }
     };
     void load();
     return () => {
@@ -100,11 +116,12 @@ export function DashboardRunList() {
           tests. Camarade measures both runs deterministically and explains the outcome when the evidence supports
           one. Limited or invalid evidence produces no winner.
         </p>
-        <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_LIST_NOTICE}</p>
+        <p className="fixture-disclaimer">{fixtureMode ? DASHBOARD_FIXTURE_LIST_NOTICE : "Local run data — read from this machine."}</p>
       </section>
 
       {state.kind === "loading" ? <DashboardLoading label="Loading runs…" /> : null}
-      {state.kind === "ready" && state.runs.length === 0 ? <DashboardEmptyRunList /> : null}
+      {state.kind === "error" ? <DashboardUnavailable invalid={state.invalid} onRetry={() => { setState({ kind: "loading" }); void loadRuns(); }} announce /> : null}
+      {state.kind === "ready" && state.runs.length === 0 ? <DashboardEmptyRunList fixtureMode={fixtureMode} /> : null}
       {state.kind === "ready" && state.runs.length > 0 ? (
         <ol className="run-list" aria-label="Recorded runs, newest first">
           {state.runs.map((entry) => (

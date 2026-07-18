@@ -1,19 +1,28 @@
-import { DASHBOARD_FIXTURE_LIST_NOTICE } from "./dashboard-format";
+import { DASHBOARD_API_FAILURE_NOTICE, DASHBOARD_FIXTURE_LIST_NOTICE } from "./dashboard-format";
 
 export function DashboardLoading({ label }: { label: string }) {
   return (
-    <div className="dashboard-state" data-state="loading" aria-live="polite">
+    <div className="dashboard-state" data-state="loading">
       <p>{label}</p>
     </div>
   );
+}
+export function DashboardUnavailable({ onRetry, invalid = false, announce = false }: { onRetry: () => void; invalid?: boolean; announce?: boolean }) {
+  return <div className="dashboard-state" data-state={invalid ? "invalid-response" : "api-unavailable"} aria-live={announce ? "polite" : undefined}>
+    <p className="dashboard-state-title">{invalid ? "The local API response could not be displayed." : DASHBOARD_API_FAILURE_NOTICE}</p>
+    <p className="dashboard-state-detail">Check the local dashboard service, then try again.</p>
+    <button className="button button--ghost dashboard-retry" type="button" onClick={onRetry}>Retry</button>
+  </div>;
 }
 
 export function DashboardNotFound({
   comparisonId,
   reason,
+  fixtureMode,
 }: {
   comparisonId: string;
   reason: "unknown" | "unsafe";
+  fixtureMode: boolean;
 }) {
   return (
     <main id="main-content" className="route-main dashboard-main">
@@ -34,7 +43,7 @@ export function DashboardNotFound({
             </>
           )}
         </p>
-        <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_LIST_NOTICE}</p>
+        {fixtureMode ? <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_LIST_NOTICE}</p> : null}
         <a className="button button--ghost" href="/runs/">
           Back to runs
         </a>
@@ -43,12 +52,12 @@ export function DashboardNotFound({
   );
 }
 
-export function DashboardEmptyRunList() {
+export function DashboardEmptyRunList({ fixtureMode }: { fixtureMode: boolean }) {
   return (
     <div className="dashboard-state dashboard-state--inline" data-state="empty-list">
       <p className="dashboard-state-title">No runs to display.</p>
       <p className="dashboard-state-detail">Recorded runs will appear here once an evaluation completes.</p>
-      <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_LIST_NOTICE}</p>
+      {fixtureMode ? <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_LIST_NOTICE}</p> : null}
     </div>
   );
 }

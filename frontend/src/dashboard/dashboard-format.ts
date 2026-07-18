@@ -91,6 +91,8 @@ export function evidenceStrengthNote(strength: DashboardEvidenceStrength): strin
 
 export const DASHBOARD_FIXTURE_LIST_NOTICE = "Simulated fixture data — not benchmark evidence.";
 export const DASHBOARD_FIXTURE_RUN_NOTICE = "Simulated fixture — not benchmark evidence.";
+export const DASHBOARD_REAL_NOTICE = "Local run data — read from this machine.";
+export const DASHBOARD_API_FAILURE_NOTICE = "The local Camarade dashboard service is unavailable.";
 
 export const DASHBOARD_SECTIONS = [
   { id: "overview", label: "Overview" },

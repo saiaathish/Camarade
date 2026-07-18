@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { createDashboardDataSource } from "./fixture-dashboard-data-source";
 import {
   DashboardRunNotFoundError,
+  DashboardApiError,
   decodeComparisonIdSegment,
   isSafeDashboardComparisonId,
 } from "./dashboard-data-source";
 import type { DashboardRun } from "./dashboard-types";
 import { DASHBOARD_SECTIONS, outcomeLabel, statusLabel } from "./dashboard-format";
-import { DashboardLoading, DashboardNotFound } from "./DashboardState";
+import { DashboardLoading, DashboardNotFound, DashboardUnavailable } from "./DashboardState";
 import { RunOverview } from "./RunOverview";
 import { RunProblems } from "./RunProblems";
 import { RunContext } from "./RunContext";
@@ -16,9 +17,9 @@ import { RunChecksMetrics } from "./RunChecksMetrics";
 import { RunInstructionImpact } from "./RunInstructionImpact";
 import { RunEvidence } from "./RunEvidence";
 
-type DetailState = { kind: "loading" } | { kind: "ready"; run: DashboardRun } | { kind: "not-found" };
+type DetailState = { kind: "loading" } | { kind: "ready"; run: DashboardRun } | { kind: "not-found" } | { kind: "error"; invalid: boolean };
 
-function RunDetailBody({ run }: { run: DashboardRun }) {
+function RunDetailBody({ run, fixtureMode }: { run: DashboardRun; fixtureMode: boolean }) {
   return (
     <>
       <header className="run-detail-header">
@@ -38,7 +39,7 @@ function RunDetailBody({ run }: { run: DashboardRun }) {
         ))}
       </nav>
 
-      <RunOverview run={run} />
+      <RunOverview run={run} fixtureMode={fixtureMode} />
       <RunProblems run={run} />
       <RunContext run={run} />
       <RunComparison run={run} />
@@ -53,6 +54,7 @@ export function DashboardRunDetail({ comparisonIdSegment }: { comparisonIdSegmen
   const comparisonId = useMemo(() => decodeComparisonIdSegment(comparisonIdSegment), [comparisonIdSegment]);
   const dataSource = useMemo(() => createDashboardDataSource(window.location.search), []);
   const [state, setState] = useState<DetailState>({ kind: "loading" });
+  const fixtureMode = ["all", "empty"].includes(new URLSearchParams(window.location.search).get("fixture") ?? "");
 
   const isSafe = comparisonId !== null && isSafeDashboardComparisonId(comparisonId);
 
@@ -75,7 +77,7 @@ export function DashboardRunDetail({ comparisonIdSegment }: { comparisonIdSegmen
           setState({ kind: "not-found" });
           document.title = "Run not found — Camarade";
         } else {
-          setState({ kind: "not-found" });
+          setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" });
         }
       });
     return () => {
@@ -84,16 +86,17 @@ export function DashboardRunDetail({ comparisonIdSegment }: { comparisonIdSegmen
   }, [comparisonId, dataSource, isSafe]);
 
   if (!isSafe || comparisonId === null) {
-    return <DashboardNotFound comparisonId={comparisonId ?? ""} reason="unsafe" />;
+    return <DashboardNotFound comparisonId={comparisonId ?? ""} reason="unsafe" fixtureMode={fixtureMode} />;
   }
   if (state.kind === "not-found") {
-    return <DashboardNotFound comparisonId={comparisonId} reason="unknown" />;
+    return <DashboardNotFound comparisonId={comparisonId} reason="unknown" fixtureMode={fixtureMode} />;
   }
+  if (state.kind === "error") return <main id="main-content" className="route-main dashboard-main"><DashboardUnavailable invalid={state.invalid} onRetry={() => { setState({ kind: "loading" }); void dataSource.getRun(comparisonId).then((run) => setState({ kind: "ready", run })).catch((error: unknown) => error instanceof DashboardRunNotFoundError ? setState({ kind: "not-found" }) : setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" })); }} announce /></main>;
 
   return (
     <main id="main-content" className="route-main dashboard-main">
       {state.kind === "loading" ? <DashboardLoading label="Loading run…" /> : null}
-      {state.kind === "ready" ? <RunDetailBody run={state.run} /> : null}
+      {state.kind === "ready" ? <RunDetailBody run={state.run} fixtureMode={fixtureMode} /> : null}
     </main>
   );
 }

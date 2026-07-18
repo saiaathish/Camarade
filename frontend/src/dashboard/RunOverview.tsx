@@ -1,6 +1,7 @@
 import type { DashboardRun } from "./dashboard-types";
 import {
   DASHBOARD_FIXTURE_RUN_NOTICE,
+  DASHBOARD_REAL_NOTICE,
   formatCompletedTimestamp,
   formatRunTimestamp,
   networkStateLabel,
@@ -19,11 +20,11 @@ function OverviewRow({ label, children }: { label: string; children: React.React
   );
 }
 
-export function RunOverview({ run }: { run: DashboardRun }) {
+export function RunOverview({ run, fixtureMode }: { run: DashboardRun; fixtureMode: boolean }) {
   return (
     <section className="run-section" id="overview" aria-labelledby="overview-heading">
       <h2 id="overview-heading">Overview</h2>
-      <p className="fixture-disclaimer">{DASHBOARD_FIXTURE_RUN_NOTICE}</p>
+      <p className="fixture-disclaimer">{fixtureMode ? DASHBOARD_FIXTURE_RUN_NOTICE : DASHBOARD_REAL_NOTICE}</p>
 
       <dl className="overview-grid">
         <OverviewRow label="Task">{run.task}</OverviewRow>

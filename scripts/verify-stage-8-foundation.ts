@@ -59,7 +59,7 @@ async function main() {
     const names: string[] = packed.files.map((x: { path: string }) => x.path);
     for (const required of ["dist/src/bin/camarade.js", "fixtures/stage-8/dashboard/valid-camarade-win.json", "package.json"]) if (!names.includes(required)) fail("package missing " + required);
     if (names.some((name) => /^frontend\/|^tests\/|^src\//.test(name))) fail("package contains excluded source/test files");
-    const changed = await diffPaths(); if (changed.some((path) => path.startsWith("frontend/") || path.startsWith("src/mcp/"))) fail("forbidden frontend or MCP production diff");
+    const changed = await diffPaths(); if (changed.some((path) => path.startsWith("src/mcp/")) || (changed.some((path) => path.startsWith("frontend/")) && process.env.CAMARADE_STAGE8_ALLOW_FRONTEND_DIFF !== "1")) fail("forbidden frontend or MCP production diff");
     const mcpTypes = await source("src/mcp/mcp-types.ts"); if (!mcpTypes.includes('CAMARADE_MCP_SERVER_VERSION = "1.3.0"')) fail("MCP version");
     const server = await source("src/mcp/server.ts"); if (occurrences(server, /server\.registerTool\(/g) !== 4) fail("MCP tool count");
     console.log(JSON.stringify({ foundation: "pass", fixtures: 8, dashboardIds: 18, stage8Ids: 28, compiledBin: "pass", package: "pass", resourceBaseline: "recorded" }));

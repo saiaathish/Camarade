@@ -1,6 +1,7 @@
 import { dashboardFixtureEmptyRunList, dashboardFixtureRuns } from "../generated/dashboard-fixtures";
 import {
   DashboardRunNotFoundError,
+  LocalApiDashboardDataSource,
   type DashboardDataSource,
 } from "./dashboard-data-source";
 import type { DashboardRun, DashboardRunSummary } from "./dashboard-types";
@@ -57,5 +58,7 @@ export class FixtureDashboardDataSource implements DashboardDataSource {
  */
 export function createDashboardDataSource(search: string): DashboardDataSource {
   const params = new URLSearchParams(search);
-  return new FixtureDashboardDataSource({ emptyRunList: params.get("fixture") === "empty" });
+  if (params.get("fixture") === "all") return new FixtureDashboardDataSource({ emptyRunList: false });
+  if (params.get("fixture") === "empty") return new FixtureDashboardDataSource({ emptyRunList: true });
+  return new LocalApiDashboardDataSource();
 }
