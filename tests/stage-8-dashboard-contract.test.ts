@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { DashboardRunListSchema, DashboardRunSchema } from "../src/dashboard/contract.js";
+import { buildDashboardRun } from "../src/dashboard/build-dashboard-run.js";
+const dir = join(process.cwd(), "fixtures/stage-8/dashboard");
+const load = (n:string) => JSON.parse(readFileSync(join(dir,n+".json"),"utf8"));
+describe("S8-01 dashboard contract", () => {
+ it("[D01] valid Camarade win",()=>expect(DashboardRunSchema.parse(load("valid-camarade-win")).outcome).toBe("win"));
+ it("[D02] tie",()=>expect(DashboardRunSchema.parse(load("valid-tie")).outcome).toBe("tie"));
+ it("[D03] regression",()=>expect(DashboardRunSchema.parse(load("valid-regression")).outcome).toBe("regression"));
+ it("[D04] limited null",()=>expect(DashboardRunSchema.parse(load("limited")).outcome).toBeNull());
+ it("[D05] invalid null",()=>expect(DashboardRunSchema.parse(load("invalid")).outcome).toBeNull());
+ it("[D06] running null",()=>expect(DashboardRunSchema.parse(load("running")).outcome).toBeNull());
+ it("[D07] failed null",()=>expect(DashboardRunSchema.parse(load("failed")).outcome).toBeNull());
+ it("[D08] empty list",()=>expect(DashboardRunListSchema.parse(load("empty-run-list"))).toEqual([]));
+ it("[D09] unknown field rejection",()=>expect(()=>DashboardRunSchema.parse({...load("limited"),unknownField:true})).toThrow());
+ it("[D10] unsafe absolute reference rejection",()=>{const x=load("valid-camarade-win"); x.conditions[0].scores[0].evidence[0].sourceRef="/private/secret"; expect(()=>DashboardRunSchema.parse(x)).toThrow()});
+ it("[D11] traversal rejection",()=>{const x=load("valid-camarade-win"); x.artifacts=[{artifactId:"x",kind:"x",path:"../secret",hash:"x"}]; expect(()=>DashboardRunSchema.parse(x)).toThrow()});
+ it("[D12] unavailable numeric preservation",()=>expect(DashboardRunSchema.parse(load("limited")).conditions[1].scores[0].value).toBeNull());
+ it("[D13] Stage 6 outcome preservation",()=>expect(DashboardRunSchema.parse(load("valid-camarade-win")).outcome).toBe("win"));
+ it("[D14] Stage 7 impact preservation",()=>expect(DashboardRunSchema.parse(load("valid-camarade-win")).conditions[1].impacts[0].direction).toBe("helped"));
+ it("[D15] deterministic ordering",()=>{const x=load("valid-camarade-win"); const shuffled=structuredClone(x); shuffled.conditions.reverse(); shuffled.conditions[0].scores.reverse(); shuffled.conditions[0].impacts.reverse(); shuffled.artifacts.reverse(); shuffled.limitations.reverse(); const canonical=buildDashboardRun(x); const fromShuffled=buildDashboardRun(shuffled); expect(fromShuffled).toEqual(canonical); expect(fromShuffled.conditions.map((c:any)=>c.condition)).toEqual(["baseline","camarade"]);});
+ it("[D16] byte-stable canonical fixture output",()=>{const bytes=readFileSync(join(dir,"valid-tie.json")); const canonical=Buffer.from(JSON.stringify(load("valid-tie"))+"\n"); expect(bytes).toEqual(canonical)});
+ it("[D17] no raw prompt secret",()=>expect(readFileSync(join(dir,"valid-camarade-win.json"),"utf8")).not.toMatch(/password|secret|system prompt|api[_-]?key/i));
+ it("[D18] all Kimi fixtures validate",()=>{["valid-camarade-win","valid-tie","valid-regression","limited","invalid","running","failed"].forEach(n=>DashboardRunSchema.parse(load(n))); expect(DashboardRunListSchema.parse(load("empty-run-list"))).toEqual([])});
+});
