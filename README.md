@@ -51,7 +51,7 @@ MCP clients normally launch the local stdio server. The primary tool is `camarad
 | Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
 | Test | `npm test` | Runs the Vitest suite once. |
 | Test watch | `npm run test:watch` | Runs Vitest in watch mode. |
-| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, and `evaluate`. |
+| CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, `evaluate`, `measure`, `explain`, `runs`, and `show`. |
 | Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |
 
 ## Product website
