@@ -59,7 +59,8 @@ describe("Camarade plugin package", () => {
       expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
         "camarade.compile_task_context",
         "camarade.run_fair_experiment",
-        "camarade.measure_experiment"
+        "camarade.measure_experiment",
+        "camarade.explain_experiment"
       ]);
     } finally {
       await client.close().catch(() => undefined);

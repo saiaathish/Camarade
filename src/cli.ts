@@ -45,6 +45,7 @@ export const CLI_USAGE = [
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--confirm-execution] [--json]",
   "  camarade runs [--controller-root PATH] [--json]",
   "  camarade show COMPARISON-ID [--controller-root PATH] [--json]",
+  "  camarade dashboard [COMPARISON-ID] [--controller-root PATH] [--port PORT] [--no-open]",
   "",
   "The command adapter starts the explicitly configured executable directly without a shell.",
   "Repeat --command-arg once for each literal argument, in execution order."
