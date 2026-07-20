@@ -34,7 +34,7 @@ const SINGLE_VALUE_FLAGS = new Set([
 ]);
 
 export const CLI_USAGE = [
-"Usage:",
+"Usage: camarade <command>",
   "  camarade measure (--comparison ID --controller-root PATH | --experiment-directory PATH) --confirm-measurement",
   "  camarade explain (--comparison ID --controller-root ABS | --experiment-directory ABS) --confirm-explanation",
   "  camarade compile --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--reasoner fixture] [--context-budget CHARACTERS] [--intelligence-artifact REPO-REL] [--output-format human|json]",
@@ -534,7 +534,7 @@ export async function runCli(
       return 1;
     }
     const message = cause instanceof Error ? cause.message : String(cause);
-    io.stderr.write(`Problem: ${message}\n${CLI_USAGE}\n`);
+    io.stderr.write(cause instanceof CliUsageError ? `Problem: ${message}\n${CLI_USAGE}\n` : `Problem: ${message}\n`);
     return 1;
   }
 }

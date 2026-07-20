@@ -9,6 +9,13 @@ describe("Stage 2 CLI import and process smoke behavior", () => {
     expect(CLI_USAGE).not.toContain("scaffold");
   });
 
+  it("lists every routed command in the usage text", () => {
+    expect(CLI_USAGE).toMatch(/^Usage: camarade/);
+    for (const command of ["measure", "explain", "compile", "inspect", "evaluate", "runs", "show"]) {
+      expect(CLI_USAGE).toContain(`camarade ${command}`);
+    }
+  });
+
   it("rejects missing CLI input without a stack trace", () => {
     const tsxCli = resolve("node_modules/tsx/dist/cli.mjs");
     const cli = resolve("src/cli.ts");

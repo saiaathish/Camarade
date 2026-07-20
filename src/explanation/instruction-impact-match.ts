@@ -1,10 +1,14 @@
+import { createHash } from "node:crypto";
+import { isAbsolute } from "node:path";
 export type Obj = Record<string, unknown>;
 export const obj = (v: unknown): Obj => v && typeof v === "object" && !Array.isArray(v) ? v as Obj : {};
 export const text = (v: unknown) => typeof v === "string" ? v.trim() : "";
 export const arr = (v: unknown): unknown[] => Array.isArray(v) ? v : v === undefined ? [] : [v];
 export const idOf = (v: unknown) => typeof v === "string" ? v.trim() : (() => { const r = obj(v); return text(r.instructionId ?? r.ruleId ?? r.checkId ?? r.evidenceId ?? r.id ?? r.name); })();
 export const refOf = (v: unknown) => { const r = obj(v); return text(r.sourceRef ?? r.evidenceRef ?? r.artifactRef ?? r.relativePath ?? r.path); };
-export const identityOf = (v: unknown) => { const r = obj(v); return text(r.identity ?? r.statement ?? r.text ?? r.instruction ?? r.requirement ?? r.name); };
+const unsafeIdentity = (s: string) => isAbsolute(s) || s.includes("\\") || s.includes("\0") || s.split("/").some(p => p === "..") || s.startsWith("file:") || s.includes("/Users/") || s.includes("/private/") || s.includes("/tmp/");
+export const publicIdentity = (s: string) => s !== "" && unsafeIdentity(s) ? `redacted-unsafe-identity-${createHash("sha256").update(s).digest("hex").slice(0, 16)}` : s;
+export const identityOf = (v: unknown) => { const r = obj(v); return publicIdentity(text(r.identity ?? r.statement ?? r.text ?? r.instruction ?? r.requirement ?? r.name)); };
 export const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9@._/]+/g, " ").trim().replace(/\s+/g, " ");
 export const linkedIds = (v: unknown): string[] => { const r = obj(v); return [...new Set([...arr(r.instructionId), ...arr(r.instructionIds), ...arr(r.linkedInstructionId), ...arr(r.linkedInstructionIds), ...arr(r.instructionRefs)].map(idOf).filter(Boolean))]; };
 export const records = (v: unknown, keys: readonly string[]) => { const r = obj(v); return keys.flatMap(k => arr(r[k]).map(obj).filter(x => Object.keys(x).length > 0)); };
