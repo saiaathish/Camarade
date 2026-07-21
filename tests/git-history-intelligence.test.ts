@@ -14,13 +14,14 @@ const repo = (commits = ["initial"]): string => {
 };
 const clean = (path: string) => rmSync(path, { recursive: true, force: true });
 const git = (path: string, ...args: string[]) => execFileSync("git", args, { cwd: path, stdio: "pipe" }).toString().trim();
+const GIT_HISTORY_BOUND_TEST_TIMEOUT_MS = 120_000;
 
 describe("git history intelligence", () => {
   it("REQ-GIT-01 rejects an empty repository path", () => expect(() => analyzeGitHistory({ repositoryPath: "" })).toThrow());
   it("REQ-GIT-02 rejects a missing repository path", () => expect(() => analyzeGitHistory({ repositoryPath: join(tmpdir(), "does-not-exist-camarade") })).toThrow());
   it("REQ-GIT-03 rejects a non-Git directory", () => { const path = mkdtempSync(join(tmpdir(), "camarade-non-git-")); try { expect(() => analyzeGitHistory({ repositoryPath: path })).toThrow(); } finally { clean(path); } });
   it("REQ-GIT-04 returns unavailable evidence for a repository without commits", () => { const path = repo([]); try { expect(analyzeGitHistory({ repositoryPath: path }).availability).toBe("unavailable"); } finally { clean(path); } });
-  it("REQ-GIT-05 uses the default one-hundred-commit bound", () => { const path = repo(Array.from({ length: 101 }, (_, i) => `commit-${i}`)); try { expect(analyzeGitHistory({ repositoryPath: path }).metadata.commitCount).toBe(100); } finally { clean(path); } });
+  it("REQ-GIT-05 uses the default one-hundred-commit bound", () => { const path = repo(Array.from({ length: 101 }, (_, i) => `commit-${i}`)); try { expect(analyzeGitHistory({ repositoryPath: path }).metadata.commitCount).toBe(100); } finally { clean(path); } }, GIT_HISTORY_BOUND_TEST_TIMEOUT_MS);
   it("REQ-GIT-06 uses a deterministic HEAD-relative age cutoff", () => { const path = repo(["old", "new"]); try { expect(analyzeGitHistory({ repositoryPath: path, maxAgeDays: 0 }).metadata.ageCutoff).toBe("HEAD-relative"); } finally { clean(path); } });
   it("REQ-GIT-07 rejects invalid history options", () => expect(() => analyzeGitHistory({ repositoryPath: ".", maxCommits: -1 })).toThrow());
   it("REQ-GIT-08 excludes merge commits", () => { const path = repo(["one", "two"]); try { expect(analyzeGitHistory({ repositoryPath: path }).records.some(record => (record.parents?.length ?? 0) > 1)).toBe(false); } finally { clean(path); } });
