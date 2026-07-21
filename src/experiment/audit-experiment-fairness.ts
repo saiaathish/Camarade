@@ -7,6 +7,7 @@ import type {
   FairnessAuditCheck,
   PreparedFairExperiment,
 } from "./experiment-types.js";
+import { sameFilesystemPath } from "./git.js";
 
 export interface AuditExperimentFairnessInput {
   prepared: PreparedFairExperiment;
@@ -72,7 +73,7 @@ export function auditExperimentFairness(input: AuditExperimentFairnessInput): Fa
     check("separate-worktrees", baseline.worktree.path !== camarade.worktree.path, "Separate worktrees", baseline.worktree.path, camarade.worktree.path),
     check("separate-context-paths", baseline.context.contextPath !== camarade.context.contextPath, "Context paths", baseline.context.contextPath, camarade.context.contextPath),
     check("separate-prompt-paths", executed.baseline.prompt.promptPath !== executed.camarade.prompt.promptPath, "Prompt paths", executed.baseline.prompt.promptPath, executed.camarade.prompt.promptPath),
-    check("source-repository-path-unchanged", sourcePostRunState.repositoryPath === prepared.startingState.repositoryPath, "Source path", sourcePostRunState.repositoryPath, prepared.startingState.repositoryPath),
+    check("source-repository-path-unchanged", sameFilesystemPath(sourcePostRunState.repositoryPath, prepared.startingState.repositoryPath), "Source path", sourcePostRunState.repositoryPath, prepared.startingState.repositoryPath),
     check("source-commit-unchanged", sourcePostRunState.startingCommit === prepared.startingState.startingCommit, "Source commit", sourcePostRunState.startingCommit, prepared.startingState.startingCommit),
     check("source-tree-unchanged", sourcePostRunState.startingTree === prepared.startingState.startingTree, "Source tree", sourcePostRunState.startingTree, prepared.startingState.startingTree),
     check("source-tracked-tree-hash-unchanged", sourcePostRunState.repositoryFingerprint === prepared.startingState.repositoryFingerprint, "Source fingerprint", sourcePostRunState.repositoryFingerprint, prepared.startingState.repositoryFingerprint),

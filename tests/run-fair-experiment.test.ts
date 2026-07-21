@@ -152,8 +152,8 @@ describe("S6-02 sealed integration", () => {
     const result = await runFairExperiment({ repositoryPath: f.repository, controllerRoot: f.controller, task: TASK }, config);
     expect(result.summary).toMatchObject({ evaluationSealStatus: "unavailable", evaluationSealHash: result.evaluationSeal?.sealHash, evaluationUnavailableReason: "EVALUATION_DEFINITION_NOT_PROVIDED" });
     expect(result.evaluationSeal).toMatchObject({ status: "unavailable", unavailableReason: "EVALUATION_DEFINITION_NOT_PROVIDED" });
-    const evaluationFiles = (await allFiles(result.prepared!.layout.experimentDirectory)).filter((path) => path.includes("/evaluation/"));
-    expect(evaluationFiles.map((path) => path.slice(result.prepared!.layout.experimentDirectory.length + 1))).toEqual(["evaluation/evaluation-seal.json"]);
+    const evaluationFiles = (await allFiles(result.prepared!.layout.experimentDirectory)).filter((path) => path.split(/[\\/]/u).includes("evaluation"));
+    expect(evaluationFiles.map((path) => path.slice(result.prepared!.layout.experimentDirectory.length + 1).replaceAll("\\", "/"))).toEqual(["evaluation/evaluation-seal.json"]);
     expect(result.artifactIndex!.entries.filter((entry) => entry.kind === "evaluation-definition" || entry.kind === "evaluation-hidden-asset")).toEqual([]);
     await validateExperimentArtifacts(result);
     const evidence = await verifyExperimentIntegrity(result.prepared!.layout.experimentDirectory);

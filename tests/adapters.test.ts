@@ -182,12 +182,14 @@ process.stderr.write("captured stderr\\n");
     });
     delete process.env.CAMARADE_TEST_SECRET;
 
-    const evidence: unknown = JSON.parse(await readFile(stdoutPath, "utf8"));
-    const expectedCwd = process.platform === "win32"
-      ? await realpath(String((evidence as { cwd: string }).cwd))
-      : await realpath(worktreePath);
+    const evidence = JSON.parse(await readFile(stdoutPath, "utf8")) as { cwd: string; [key: string]: unknown };
+    const expectedCwd = await realpath(worktreePath);
+    const normalizedEvidence = {
+      ...evidence,
+      ...(process.platform === "win32" ? { cwd: await realpath(evidence.cwd) } : {})
+    };
     expect(adapter.id).toBe("command");
-    expect(evidence).toEqual({
+    expect(normalizedEvidence).toEqual({
       cwd: expectedCwd,
       task: "Inspect only the adapter environment",
       condition: "camarade",

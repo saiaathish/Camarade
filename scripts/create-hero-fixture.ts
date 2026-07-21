@@ -3,6 +3,7 @@ import { cp, lstat, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createChildEnvironment } from "../src/core/process-environment.js";
 
 const TEMPLATE_PATH = fileURLToPath(new URL("../examples/hero-fixture-template/", import.meta.url));
 const FIXED_GIT_DATE = "2000-01-01T00:00:00Z";
@@ -85,12 +86,11 @@ function runGit(arguments_: string[], cwd: string): Promise<string> {
       maxBuffer: 16 * 1024 * 1024,
       timeout: 30_000,
       windowsHide: true,
-      env: {
-        ...process.env,
+      env: createChildEnvironment({
         GIT_AUTHOR_DATE: FIXED_GIT_DATE,
         GIT_COMMITTER_DATE: FIXED_GIT_DATE,
         LC_ALL: "C"
-      }
+      })
     }, (error, stdout, stderr) => {
       if (error === null) {
         resolveCommand(stdout.trim());

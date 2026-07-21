@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
 import { terminateProcessTree } from "../core/terminate-process-tree.js";
+import { createChildEnvironment } from "../core/process-environment.js";
 
 export interface CollectDiffOptions {
   excludedImplementationPaths?: readonly string[];
@@ -86,6 +87,7 @@ function runGit(
       cwd: repositoryPath,
       detached: process.platform !== "win32",
       shell: false,
+      env: createChildEnvironment(),
       stdio: ["ignore", "pipe", "pipe"]
     });
     const stdout: Buffer[] = [];

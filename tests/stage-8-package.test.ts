@@ -25,10 +25,10 @@ describe("S8-02 package", () => {
     let tarball = "";
     try {
       await npm(["run", "build"]);
-      tarball = (await npm(["pack", "--silent"])).stdout.trim().split(/\r?\n/u).at(-1) ?? "";
+      tarball = (await npm(["pack", "--silent", "--pack-destination", temporaryRoot])).stdout.trim().split(/\r?\n/u).at(-1) ?? "";
       expect(tarball).toMatch(/\.tgz$/u);
       const installRoot = join(temporaryRoot, "installed");
-      await requirePortableSuccess({ ...npmInvocation(["install", "--offline=false", "--prefer-online", "--ignore-scripts", "--no-save", "--prefix", installRoot, join(root, tarball)]), cwd: root, timeoutMs: 120_000 });
+      await requirePortableSuccess({ ...npmInvocation(["install", "--offline=false", "--prefer-online", "--ignore-scripts", "--no-save", "--prefix", installRoot, join(temporaryRoot, tarball)]), cwd: temporaryRoot, timeoutMs: 120_000 });
       const controller = join(temporaryRoot, "controller");
       const run = join(controller, ".camarade", "runs", "win-001");
       await mkdir(run, { recursive: true });
@@ -47,7 +47,7 @@ describe("S8-02 package", () => {
       expect(JSON.parse(showResult.stdout).comparisonId).toBe("win-001");
       for (const output of [runResult.stdout, showResult.stdout]) expect(output).not.toMatch(/\/Users\/|\/private\/|[A-Za-z]:\\|system prompt|secret/iu);
     } finally {
-      if (tarball) await rm(join(root, tarball), { force: true });
+      if (tarball) await rm(join(temporaryRoot, tarball), { force: true });
       await rm(temporaryRoot, { recursive: true, force: true });
     }
   }, 180_000);
