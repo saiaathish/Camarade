@@ -19,16 +19,20 @@ async function withFakeGit(
   const repositoryPath = await temporaryDirectory();
   const binPath = join(repositoryPath, "bin");
   await mkdir(binPath);
-  const gitPath = join(binPath, "git");
-  await writeFile(
-    gitPath,
-    `#!/usr/bin/env node
+  const script = `#!/usr/bin/env node
 if (process.argv[2] === "status") {
 ${behavior}
 }
-`
+`;
+  const gitPath = join(binPath, "git");
+  await writeFile(
+    process.platform === "win32" ? join(binPath, "git.mjs") : gitPath,
+    script
   );
-  await chmod(gitPath, 0o755);
+  if (process.platform !== "win32") await chmod(gitPath, 0o755);
+  if (process.platform === "win32") {
+    await writeFile(join(binPath, "git.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0git.mjs" %*\r\n`);
+  }
 
   const previousPath = process.env.PATH;
   process.env.PATH = `${binPath}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;

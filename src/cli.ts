@@ -22,6 +22,7 @@ import { listRuns, showRun } from "./evaluate/run-store.js";
 import { renderDashboardRun } from "./evaluate/render-dashboard-run.js";
 import { runDashboard, validateDashboardPort } from "./dashboard-server/dashboard-command.js";
 import { sanitizePublicErrorMessage } from "./artifacts/public-evidence-policy.js";
+import { isPortableAbsolutePath } from "./core/path-portability.js";
 
 const AVAILABLE_ADAPTERS = ["fixture", "command"] as const;
 const SINGLE_VALUE_FLAGS = new Set([
@@ -233,7 +234,7 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
   const resolvedCommandExecutable = commandExecutable === undefined
     ? undefined
     : commandExecutable.includes("/") || commandExecutable.includes("\\")
-      ? resolve(cwd, commandExecutable)
+      ? isPortableAbsolutePath(commandExecutable) ? commandExecutable : resolve(cwd, commandExecutable)
       : commandExecutable;
 
   return {

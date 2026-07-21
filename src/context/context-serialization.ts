@@ -35,7 +35,7 @@ export function createContextId(prefix: string, components: readonly unknown[]):
 }
 
 export function toPosixPath(value: string): string {
-  return value.split(path.sep).join("/");
+  return value.replaceAll("\\", "/");
 }
 
 export function isSafeRepositoryPath(value: string): boolean {

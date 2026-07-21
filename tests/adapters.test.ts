@@ -31,7 +31,7 @@ function fixtureValidation(worktreePath: string): number | null {
   return spawnSync(
     process.platform === "win32" ? "npm.cmd" : "npm",
     ["test"],
-    { cwd: worktreePath, encoding: "utf8" }
+    { cwd: worktreePath, encoding: "utf8", shell: process.platform === "win32" }
   ).status;
 }
 

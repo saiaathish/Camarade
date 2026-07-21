@@ -37,6 +37,7 @@ import type { EvaluationExecutionReference } from "../evaluation/evaluation-exec
 import { measureExperiment } from "../evaluation/measurement.js";
 import { scorePair, resolveStatus, resolveOutcomeWithOverride, resolveMaterialOverride, type ConditionEvidence } from "../evaluation/scoring.js";
 import { writeScoringArtifacts, validateScoringArtifacts } from "../evaluation/scoring-artifacts.js";
+import { sameFilesystemPath } from "./git.js";
 export interface RunFairExperimentOptions {
   prepareOptions?: PrepareFairExperimentOptions;
   executeOptions?: Record<string, unknown>;
@@ -183,7 +184,7 @@ export async function runFairExperiment(
     prepared.startingState.repositoryPath,
   );
   const sourceModified =
-    sourceState.repositoryPath !== prepared.startingState.repositoryPath ||
+    !sameFilesystemPath(sourceState.repositoryPath, prepared.startingState.repositoryPath) ||
     sourceState.startingCommit !== prepared.startingState.startingCommit ||
     sourceState.startingTree !== prepared.startingState.startingTree ||
     sourceState.trackedTreeHash !== prepared.startingState.trackedTreeHash ||

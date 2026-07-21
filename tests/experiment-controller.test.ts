@@ -53,6 +53,7 @@ async function createRepository(root: string): Promise<{ repositoryPath: string;
   git(repositoryPath, "init");
   git(repositoryPath, "config", "user.email", "controller@example.com");
   git(repositoryPath, "config", "user.name", "Controller Test");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", ".");
   git(repositoryPath, "commit", "-m", "fixture");
   return { repositoryPath, commit: git(repositoryPath, "rev-parse", "HEAD") };

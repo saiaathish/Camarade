@@ -151,12 +151,22 @@ export function assertSafeComparisonId(comparisonId: string): void {
 }
 
 export function isPathWithin(parentPath: string, candidatePath: string): boolean {
-  const pathFromParent = relative(resolve(parentPath), resolve(candidatePath));
+  const parent = resolve(parentPath);
+  const candidate = resolve(candidatePath);
+  const comparisonParent = process.platform === "win32" ? parent.toLowerCase() : parent;
+  const comparisonCandidate = process.platform === "win32" ? candidate.toLowerCase() : candidate;
+  const pathFromParent = relative(comparisonParent, comparisonCandidate);
   return pathFromParent === "" || (
     !isAbsolute(pathFromParent) &&
     pathFromParent !== ".." &&
     !pathFromParent.startsWith(`..${sep}`)
   );
+}
+
+export function sameFilesystemPath(left: string, right: string): boolean {
+  const a = resolve(left);
+  const b = resolve(right);
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 export async function pathExists(path: string): Promise<boolean> {

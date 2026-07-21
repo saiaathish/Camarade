@@ -86,10 +86,12 @@ describe("context artifact writer", () => {
     const writer = await createContextArtifactWriter({ controllerRoot, compilationId: "write-failure" });
     await writer.writeJson("taskSpecification", { originalTask: "Add a feature." });
     await chmod(writer.stagingDirectory, 0o500);
-    await expect(writer.writeJson("decisions", [])).rejects.toMatchObject({
-      code: "CONTEXT_WRITE_FAILED",
-      stage: "write-context-artifacts"
-    });
+    if (process.platform !== "win32") {
+      await expect(writer.writeJson("decisions", [])).rejects.toMatchObject({
+        code: "CONTEXT_WRITE_FAILED",
+        stage: "write-context-artifacts"
+      });
+    }
     await chmod(writer.stagingDirectory, 0o700);
     const evidencePath = await writer.fail({
       ...failedSummary("write-failure"),

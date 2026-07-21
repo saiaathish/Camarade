@@ -67,7 +67,7 @@ describe("hero fixture template", () => {
   });
 
   it("starts with a passing HTTP 429 test", () => {
-    const stdout = execFileSync("npm", ["test", "--", "--test-reporter=spec"], {
+    const stdout = execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["test", "--", "--test-reporter=spec"], {
       cwd: templatePath,
       encoding: "utf8"
     });

@@ -28,7 +28,7 @@ vi.mock("node:fs/promises", async () => {
       fsMockState.mkdirCalls += 1;
       const result = await actual.mkdir(path, options);
       if (fsMockState.triggerPath !== "" &&
-          (resolve(path) === resolve(fsMockState.triggerPath) || path.endsWith("/camarade/logs")) &&
+          (resolve(path) === resolve(fsMockState.triggerPath) || path.replaceAll("\\", "/").endsWith("/camarade/logs")) &&
           !fsMockState.triggered) {
         fsMockState.triggered = true;
         await actual.rm(fsMockState.runDirectory, { recursive: true, force: true });

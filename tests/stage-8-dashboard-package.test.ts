@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { access, mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import path from "node:path";
 import { tmpdir } from "node:os";
 import * as net from "node:net";
 import { installedCamaradeInvocation, npmInvocation, requirePortableSuccess, terminatePortableProcess } from "../scripts/lib/portable-command.js";
@@ -26,7 +27,8 @@ describe("S8-04 package", () => {
       await access(installedEntry);
       expect(invocation.command).toBe(process.execPath);
       expect(relative(temp,installedEntry)).not.toMatch(/^\.\.(?:[/\\]|$)/u);
-      expect(relative(root,installedEntry)).toMatch(/^\.\.(?:[/\\]|$)/u);
+      const fromRepository = relative(root,installedEntry);
+      expect(path.isAbsolute(fromRepository) || /^\.\.(?:[/\\]|$)/u.test(fromRepository)).toBe(true);
       child=spawn(invocation.command,invocation.args,{cwd:temp,env:{...process.env,CI:"1"},detached:process.platform!=="win32",windowsHide:true,stdio:["ignore","pipe","pipe"]});
       child.stdout!.on("data",x=>logChunks.push(String(x))); child.stderr!.on("data",x=>logChunks.push(String(x)));
       await new Promise<void>((resolve,reject)=>{const deadline=Date.now()+15000; const poll=()=>{if(logChunks.join("").includes(`http://127.0.0.1:${port}/runs/win-001/`))return resolve();if(child?.exitCode!==null)return reject(new Error(`tarball dashboard exited early: ${logChunks.join("")}`));if(Date.now()>deadline)return reject(new Error(`tarball dashboard did not start: ${logChunks.join("")}`));setTimeout(poll,50);};poll();});

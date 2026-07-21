@@ -60,6 +60,7 @@ async function fixture(validationCommands = true): Promise<FixturePaths> {
   git(repositoryPath, "config", "user.name", "Camarade CLI Test");
   git(repositoryPath, "config", "user.email", "cli-test@camarade.local");
   git(repositoryPath, "config", "commit.gpgsign", "false");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", "--all");
   git(repositoryPath, "commit", "--quiet", "--message", "fixture");
   return {

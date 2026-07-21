@@ -1,5 +1,6 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isPortableAbsolutePath } from "../core/path-portability.js";
 
 export const PUBLIC_EVIDENCE_MAX_FILE_BYTES = 16 * 1024 * 1024;
 export const PUBLIC_EVIDENCE_MAX_NODES = 500_000;
@@ -65,7 +66,7 @@ export function isControllerPrivatePath(relativePath: string): boolean {
 
 function isSafeReference(value: string): boolean {
   const normalized = value.replaceAll("\\", "/");
-  return normalized !== "" && !normalized.includes("\0") && !isAbsolute(value) &&
+  return normalized !== "" && !normalized.includes("\0") && !isPortableAbsolutePath(value) &&
     !/^[A-Za-z]:[\\/]/u.test(value) && !normalized.startsWith("file://") &&
     !normalized.startsWith("~/") && !normalized.split("/").includes("..");
 }
@@ -73,7 +74,7 @@ function isSafeReference(value: string): boolean {
 export function publicReference(root: string, candidate: unknown, fallback: string): string {
   const safeFallback = fallback.replaceAll("\\", "/");
   if (!isSafeReference(safeFallback)) throw new TypeError("Public evidence fallback must be a safe relative reference.");
-  if (typeof candidate !== "string" || candidate.includes("\0") || /^[A-Za-z]:[\\/]/u.test(candidate)) return safeFallback;
+  if (typeof candidate !== "string" || candidate.includes("\0") || isPortableAbsolutePath(candidate)) return safeFallback;
   const normalized = candidate.replaceAll("\\", "/");
   if (!isAbsolute(candidate)) return isSafeReference(normalized) ? normalized : safeFallback;
   const projected = relative(resolve(root), resolve(candidate)).replaceAll("\\", "/");

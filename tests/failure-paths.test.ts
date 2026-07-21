@@ -376,7 +376,7 @@ describe("S2-10 public failure paths", () => {
       await readFile(join(result.artifacts.camarade.logsDirectory, "agent.stdout.log"), "utf8")
     );
     expect(camaradeEvidence.baselineSiblingExists).toBe(false);
-    expect(camaradeEvidence.contextPath).toBe(`${result.manifests.camarade.worktree}/AGENTS.md`);
+    expect(camaradeEvidence.contextPath).toBe(join(result.manifests.camarade.worktree, "AGENTS.md"));
     expect(await readFile(result.artifacts.generatedAgentsPath, "utf8")).not.toContain(paths.repositoryPath);
     expect(git(paths.repositoryPath, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
   });
