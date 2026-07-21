@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createChildEnvironment } from "../src/core/process-environment.js";
+import { resolveGitInvocation } from "../src/experiment/git.js";
 
 const TEMPLATE_PATH = fileURLToPath(new URL("../examples/hero-fixture-template/", import.meta.url));
 const FIXED_GIT_DATE = "2000-01-01T00:00:00Z";
@@ -80,17 +81,20 @@ async function copyTemplateContents(destination: string): Promise<void> {
 
 function runGit(arguments_: string[], cwd: string): Promise<string> {
   return new Promise((resolveCommand, rejectCommand) => {
-    execFile("git", arguments_, {
+    const environment = createChildEnvironment({
+      GIT_AUTHOR_DATE: FIXED_GIT_DATE,
+      GIT_COMMITTER_DATE: FIXED_GIT_DATE,
+      LC_ALL: "C"
+    });
+    void resolveGitInvocation(arguments_, environment).then((invocation) => {
+    execFile(invocation.command, invocation.args, {
       cwd,
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,
       timeout: 30_000,
       windowsHide: true,
-      env: createChildEnvironment({
-        GIT_AUTHOR_DATE: FIXED_GIT_DATE,
-        GIT_COMMITTER_DATE: FIXED_GIT_DATE,
-        LC_ALL: "C"
-      })
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? false,
+      env: environment
     }, (error, stdout, stderr) => {
       if (error === null) {
         resolveCommand(stdout.trim());
@@ -99,6 +103,7 @@ function runGit(arguments_: string[], cwd: string): Promise<string> {
       const detail = stderr.trim() || error.message;
       rejectCommand(new HeroFixtureError(`Git command failed (git ${arguments_.join(" ")}): ${detail}`, error));
     });
+    }).catch((error: unknown) => rejectCommand(error instanceof Error ? error : new Error(String(error))));
   });
 }
 

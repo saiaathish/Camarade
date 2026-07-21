@@ -31,3 +31,14 @@ export function createChildEnvironment(
   }
   return { ...environment, ...additions };
 }
+
+export function createValidationEnvironment(
+  base: NodeJS.ProcessEnv = createChildEnvironment(),
+): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    NO_UPDATE_NOTIFIER: "1",
+    NPM_CONFIG_UPDATE_NOTIFIER: "false",
+    npm_config_update_notifier: "false",
+  };
+}

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createChildEnvironment } from "../core/process-environment.js";
+import { createValidationEnvironment } from "../core/process-environment.js";
 import { canonicalJson, sha256 } from "../context/context-serialization.js";
 import { writeJsonExclusive } from "../artifacts/write-manifest.js";
 import { validateFairExperimentRequest } from "./validate-experiment-request.js";
@@ -128,7 +128,7 @@ export async function runFairExperiment(
   const executed = await executePreparedExperiment(prepared);
   if (executed.fairnessAudit.checks.length === 0)
     throw new Error("Execution fairness audit missing checks.");
-  const env = createChildEnvironment();
+  const env = createValidationEnvironment();
   const evidence = envEvidence(env);
   const results: Partial<
     Record<"baseline" | "camarade", ConditionValidationResult>

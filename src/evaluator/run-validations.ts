@@ -3,7 +3,7 @@ import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import { performance } from "node:perf_hooks";
 import { spawn, type ChildProcess } from "node:child_process";
 import { isValidationCommand, validationCommandLabel, type StructuredValidationCommand, type ValidationCommand, type ValidationResult } from "../core/types.js";
-import { createChildEnvironment } from "../core/process-environment.js";
+import { createChildEnvironment, createValidationEnvironment } from "../core/process-environment.js";
 import { timeoutSecondsToMilliseconds } from "../core/process-timeout.js";
 import { terminateProcessTree } from "../core/terminate-process-tree.js";
 
@@ -77,7 +77,7 @@ async function runValidation(
   const child = spawn(structured ? configuration.executable : command, structured ? (configuration.arguments ?? []) : [], {
     cwd,
     detached: process.platform !== "win32",
-    env: options.environment ?? createChildEnvironment(),
+    env: createValidationEnvironment(options.environment ?? createChildEnvironment()),
     shell: !structured,
     stdio: ["ignore", stdout.fd, stderr.fd]
   });
