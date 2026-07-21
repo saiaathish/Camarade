@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -45,12 +45,19 @@ describe("Camarade plugin package", () => {
 
   it("starts the bundled MCP runtime without repository dependencies", async () => {
     const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "camarade-plugin-test-"));
+    const isolatedPluginRoot = path.join(temporaryRoot, "plugin");
+    const runtimeTemp = path.join(temporaryRoot, "runtime-temp");
+    await cp(pluginRoot, isolatedPluginRoot, { recursive: true });
+    const environment = Object.fromEntries(Object.entries(process.env).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[0] !== "NODE_PATH" && entry[0] !== "NODE_OPTIONS"
+    ));
+    Object.assign(environment, { TMPDIR: runtimeTemp, TMP: runtimeTemp, TEMP: runtimeTemp });
     const client = new Client({ name: "camarade-plugin-verifier", version: "1.0.0" });
     const transport = new StdioClientTransport({
       command: process.execPath,
-      args: [path.join(pluginRoot, "mcp/bootstrap.mjs")],
-      cwd: pluginRoot,
-      env: { TMPDIR: temporaryRoot, TMP: temporaryRoot, TEMP: temporaryRoot },
+      args: [path.join(isolatedPluginRoot, "mcp/bootstrap.mjs")],
+      cwd: isolatedPluginRoot,
+      env: environment,
       stderr: "pipe"
     });
 
@@ -59,7 +66,8 @@ describe("Camarade plugin package", () => {
       expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
         "camarade.compile_task_context",
         "camarade.run_fair_experiment",
-        "camarade.measure_experiment"
+        "camarade.measure_experiment",
+        "camarade.explain_experiment"
       ]);
     } finally {
       await client.close().catch(() => undefined);

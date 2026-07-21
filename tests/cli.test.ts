@@ -60,6 +60,7 @@ async function fixture(validationCommands = true): Promise<FixturePaths> {
   git(repositoryPath, "config", "user.name", "Camarade CLI Test");
   git(repositoryPath, "config", "user.email", "cli-test@camarade.local");
   git(repositoryPath, "config", "commit.gpgsign", "false");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", "--all");
   git(repositoryPath, "commit", "--quiet", "--message", "fixture");
   return {
@@ -262,7 +263,7 @@ describe("runCli", () => {
     expect(git(paths.repositoryPath, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
   });
 
-  it("reports task-file errors without a stack and includes deterministic usage", async () => {
+  it("reports sanitized task-file errors without a stack and includes deterministic usage", async () => {
     const paths = await fixture(false);
     const capture = captureIo();
     const missingTask = join(paths.root, "missing-task.md");
@@ -277,13 +278,14 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(1);
     expect(capture.stdout).toEqual([]);
-    expect(capture.stderr.join("")).toContain(`Task file cannot be read: ${missingTask}`);
+    expect(capture.stderr.join("")).toContain("Task file cannot be read: <redacted-path>");
+    expect(capture.stderr.join("")).not.toContain(missingTask);
     expect(capture.stderr.join("")).toContain(CLI_USAGE);
     expect(capture.stderr.join("")).not.toContain(" at ");
     expect(capture.stderr.join("")).not.toContain("CliUsageError:");
   });
 
-  it("prints a typed pipeline stage and evidence path without a stack", async () => {
+  it("prints a typed pipeline stage without exposing a private evidence path", async () => {
     const capture = captureIo();
     const evidencePath = resolve("/tmp/camarade-failed-evidence");
     const failingRunner: ComparisonRunner = async () => {
@@ -307,9 +309,10 @@ describe("runCli", () => {
     expect(capture.stderr.join("")).toBe([
       "Problem: Adapter execution failed safely.",
       "Failed stage: baseline-execution",
-      `Evidence path: ${evidencePath}`,
+      "Evidence: recorded in private controller artifacts.",
       ""
     ].join("\n"));
+    expect(capture.stderr.join("")).not.toContain(evidencePath);
     expect(capture.stderr.join("")).not.toContain("RunComparisonError:");
   });
 

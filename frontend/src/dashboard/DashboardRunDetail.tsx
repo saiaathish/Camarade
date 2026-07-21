@@ -17,7 +17,7 @@ import { RunChecksMetrics } from "./RunChecksMetrics";
 import { RunInstructionImpact } from "./RunInstructionImpact";
 import { RunEvidence } from "./RunEvidence";
 
-type DetailState = { kind: "loading" } | { kind: "ready"; run: DashboardRun } | { kind: "not-found" } | { kind: "error"; invalid: boolean };
+type DetailState = { kind: "loading" } | { kind: "ready"; run: DashboardRun } | { kind: "not-found" } | { kind: "error"; reason: "unavailable" | "invalid" | "unsupported" };
 
 function RunDetailBody({ run, fixtureMode }: { run: DashboardRun; fixtureMode: boolean }) {
   return (
@@ -77,7 +77,7 @@ export function DashboardRunDetail({ comparisonIdSegment }: { comparisonIdSegmen
           setState({ kind: "not-found" });
           document.title = "Run not found — Camarade";
         } else {
-          setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" });
+          setState({ kind: "error", reason: error instanceof DashboardApiError ? error.reason : "unavailable" });
         }
       });
     return () => {
@@ -91,7 +91,7 @@ export function DashboardRunDetail({ comparisonIdSegment }: { comparisonIdSegmen
   if (state.kind === "not-found") {
     return <DashboardNotFound comparisonId={comparisonId} reason="unknown" fixtureMode={fixtureMode} />;
   }
-  if (state.kind === "error") return <main id="main-content" className="route-main dashboard-main"><DashboardUnavailable invalid={state.invalid} onRetry={() => { setState({ kind: "loading" }); void dataSource.getRun(comparisonId).then((run) => setState({ kind: "ready", run })).catch((error: unknown) => error instanceof DashboardRunNotFoundError ? setState({ kind: "not-found" }) : setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" })); }} announce /></main>;
+  if (state.kind === "error") return <main id="main-content" className="route-main dashboard-main"><DashboardUnavailable invalid={state.reason === "invalid"} unsupported={state.reason === "unsupported"} onRetry={() => { setState({ kind: "loading" }); void dataSource.getRun(comparisonId).then((run) => setState({ kind: "ready", run })).catch((error: unknown) => error instanceof DashboardRunNotFoundError ? setState({ kind: "not-found" }) : setState({ kind: "error", reason: error instanceof DashboardApiError ? error.reason : "unavailable" })); }} announce /></main>;
 
   return (
     <main id="main-content" className="route-main dashboard-main">

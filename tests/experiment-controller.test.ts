@@ -53,6 +53,7 @@ async function createRepository(root: string): Promise<{ repositoryPath: string;
   git(repositoryPath, "init");
   git(repositoryPath, "config", "user.email", "controller@example.com");
   git(repositoryPath, "config", "user.name", "Controller Test");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", ".");
   git(repositoryPath, "commit", "-m", "fixture");
   return { repositoryPath, commit: git(repositoryPath, "rev-parse", "HEAD") };
@@ -184,7 +185,9 @@ describe("safe experiment controller", () => {
     await expect(access(join(worktrees.camarade.path, "CLAUDE.md"))).rejects.toThrow();
     await expect(access(join(worktrees.camarade.path, ".cursor", "rules", "api.md"))).rejects.toThrow();
     await expect(access(join(worktrees.camarade.path, ".github", "copilot-instructions.md"))).rejects.toThrow();
-    await expect(access(join(worktrees.camarade.path, "src", "feature", "AGENTS.md"))).rejects.toThrow();
+    expect(await readFile(join(worktrees.camarade.path, "src", "feature", "AGENTS.md"), "utf8"))
+      .toBe("nested agents\n");
+    expect(prepared.preservedInstructionPaths).toEqual(["src/feature/AGENTS.md"]);
     expect(JSON.parse(await readFile(layout.contextPackPath, "utf8"))).toEqual(contextPack());
     expect(git(repositoryPath, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
 

@@ -222,7 +222,8 @@ export type ContextCompilationErrorCode =
   | "CONTEXT_RENDER_MISMATCH"
   | "CONTEXT_ARTIFACT_EXISTS"
   | "CONTEXT_WRITE_FAILED"
-  | "CONTEXT_REPOSITORY_MODIFIED";
+  | "CONTEXT_REPOSITORY_MODIFIED"
+  | "UNSUPPORTED_ARTIFACT_VERSION";
 
 export interface ContextCompilationArtifactPaths {
   directory: string;

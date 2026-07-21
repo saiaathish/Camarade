@@ -7,10 +7,10 @@ export function DashboardLoading({ label }: { label: string }) {
     </div>
   );
 }
-export function DashboardUnavailable({ onRetry, invalid = false, announce = false }: { onRetry: () => void; invalid?: boolean; announce?: boolean }) {
-  return <div className="dashboard-state" data-state={invalid ? "invalid-response" : "api-unavailable"} aria-live={announce ? "polite" : undefined}>
-    <p className="dashboard-state-title">{invalid ? "The local API response could not be displayed." : DASHBOARD_API_FAILURE_NOTICE}</p>
-    <p className="dashboard-state-detail">Check the local dashboard service, then try again.</p>
+export function DashboardUnavailable({ onRetry, invalid = false, unsupported = false, announce = false }: { onRetry: () => void; invalid?: boolean; unsupported?: boolean; announce?: boolean }) {
+  return <div className="dashboard-state" data-state={unsupported ? "unsupported-version" : invalid ? "invalid-response" : "api-unavailable"} aria-live={announce ? "polite" : undefined}>
+    <p className="dashboard-state-title">{unsupported ? "This run uses an unsupported artifact version." : invalid ? "The local API response could not be displayed." : DASHBOARD_API_FAILURE_NOTICE}</p>
+    <p className="dashboard-state-detail">{unsupported ? "Upgrade Camarade or open the run with a compatible version. The unsupported data was not rendered." : "Check the local dashboard service, then try again."}</p>
     <button className="button button--ghost dashboard-retry" type="button" onClick={onRetry}>Retry</button>
   </div>;
 }

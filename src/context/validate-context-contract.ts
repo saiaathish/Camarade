@@ -12,6 +12,7 @@ import {
   type UnresolvedContextItem
 } from "./context-types.js";
 import { canonicalJson, createContextId, isSafeRepositoryPath, uniqueSorted } from "./context-serialization.js";
+import { isPortableAbsolutePath } from "../core/path-portability.js";
 import { normalizeTask } from "./normalize-task.js";
 import { measureContextContractCharacters, renderContextContract } from "./render-context-contract.js";
 
@@ -115,14 +116,17 @@ const candidateEvidence = (candidate: ContextCandidate): ReadonlySet<string> => 
 
 function validateShape(value: unknown): TaskContextContract {
   const root = requireRecord(value, "contract");
-  if (root.schemaVersion !== CONTEXT_SCHEMA_VERSION) reject("contract.schemaVersion is unsupported.", "CONTEXT_PROVENANCE_INVALID");
+  if (root.schemaVersion !== CONTEXT_SCHEMA_VERSION) reject("contract.schemaVersion is unsupported.", "UNSUPPORTED_ARTIFACT_VERSION");
   if (root.compilerVersion !== CONTEXT_COMPILER_VERSION) reject("contract.compilerVersion is unsupported.", "CONTEXT_PROVENANCE_INVALID");
   requireString(root.compilationId, "contract.compilationId");
   const goal = requireString(root.goal, "contract.goal");
   for (const name of requiredArrays) if (!Array.isArray(root[name])) reject(`contract.${name} must be an array.`, "CONTEXT_PROVENANCE_INVALID", "validate-context-contract", { path: `contract.${name}` });
   const repository = requireRecord(root.repository, "contract.repository");
   const repositoryRoot = requireString(repository.root, "contract.repository.root");
-  if (!path.isAbsolute(repositoryRoot) || path.resolve(repositoryRoot) !== repositoryRoot) reject("contract.repository.root must be an absolute normalized path.", "CONTEXT_PROVENANCE_INVALID");
+  const pathImpl = /^[A-Za-z]:[\\/]/u.test(repositoryRoot) || repositoryRoot.startsWith("\\\\")
+    ? path.win32
+    : path.posix;
+  if (!isPortableAbsolutePath(repositoryRoot) || pathImpl.normalize(repositoryRoot) !== repositoryRoot) reject("contract.repository.root must be an absolute normalized path.", "CONTEXT_PROVENANCE_INVALID");
   const artifactHash = requireString(repository.intelligenceArtifactHash, "contract.repository.intelligenceArtifactHash");
   if (!sha256.test(artifactHash)) reject("contract.repository.intelligenceArtifactHash must be a lowercase SHA-256 hash.", "CONTEXT_PROVENANCE_INVALID");
   const task = requireRecord(root.task, "contract.task");

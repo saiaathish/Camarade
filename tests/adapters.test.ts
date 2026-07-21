@@ -29,9 +29,9 @@ async function heroFixture(): Promise<string> {
 
 function fixtureValidation(worktreePath: string): number | null {
   return spawnSync(
-    process.execPath,
-    ["--experimental-strip-types", "--test", "tests/public-search.test.ts"],
-    { cwd: worktreePath, encoding: "utf8" }
+    process.platform === "win32" ? "npm.cmd" : "npm",
+    ["test"],
+    { cwd: worktreePath, encoding: "utf8", shell: process.platform === "win32" }
   ).status;
 }
 
@@ -182,10 +182,15 @@ process.stderr.write("captured stderr\\n");
     });
     delete process.env.CAMARADE_TEST_SECRET;
 
-    const evidence: unknown = JSON.parse(await readFile(stdoutPath, "utf8"));
+    const evidence = JSON.parse(await readFile(stdoutPath, "utf8")) as { cwd: string; [key: string]: unknown };
+    const expectedCwd = await realpath(worktreePath);
+    const normalizedEvidence = {
+      ...evidence,
+      ...(process.platform === "win32" ? { cwd: await realpath(evidence.cwd) } : {})
+    };
     expect(adapter.id).toBe("command");
-    expect(evidence).toEqual({
-      cwd: await realpath(worktreePath),
+    expect(normalizedEvidence).toEqual({
+      cwd: expectedCwd,
       task: "Inspect only the adapter environment",
       condition: "camarade",
       contextPath: contextPackPath,

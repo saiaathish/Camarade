@@ -140,9 +140,10 @@ describe("Stage 4 CLI", () => {
       "CONTEXT_BUDGET_EXCEEDED",
       "",
       "Evidence:",
-      join(controllerRoot, "evidence"),
+      "Recorded in private controller artifacts.",
       ""
     ].join("\n"));
+    expect(output.stderr.join("")).not.toContain(controllerRoot);
     expect(output.stderr.join("")).not.toContain("ContextCompilationError:");
   });
 });

@@ -12,6 +12,13 @@ function allowedHost(value: string | undefined) { if (!value) return false; cons
 function json(r: ServerResponse, status: number, value: unknown, head: boolean) { r.statusCode = status; headers(r, "application/json; charset=utf-8"); r.end(head ? undefined : JSON.stringify(value)); }
 function error(r: ServerResponse, status: number, code: string, message: string, head: boolean) { json(r, status, { error: { code, message } }, head); }
 function decodeSegment(raw: string) { try { return decodeURIComponent(raw); } catch { return undefined; } }
+function runError(code: string | undefined): { status: number; code: string; message: string } {
+  if (code === "DASHBOARD_ARTIFACT_TOO_LARGE") return { status: 413, code, message: "Persisted run exceeds the dashboard artifact size limit." };
+  if (code === "UNSUPPORTED_ARTIFACT_VERSION") return { status: 422, code, message: "Persisted run uses an unsupported artifact version." };
+  if (code === "INVALID_RUN") return { status: 422, code, message: "Persisted run is invalid." };
+  if (code === "UNSAFE_COMPARISON_ID") return { status: 400, code, message: "Unsafe comparison ID." };
+  return { status: 404, code: "UNKNOWN_COMPARISON_ID", message: "Unknown comparison ID." };
+}
 export function createDashboardServer(options: DashboardServerOptions = {}): DashboardServer {
   const host = "127.0.0.1", repository = new SafeDashboardRunRepository(options.controllerRoot), frontend = resolve(options.frontendRoot ?? join(process.cwd(), "dist/frontend"));
   let resolveClosed!: () => void; let closedDone = false; const closed = new Promise<void>(r => { resolveClosed = r; });
@@ -24,7 +31,7 @@ export function createDashboardServer(options: DashboardServerOptions = {}): Das
     const api = raw.match(/^\/api\/runs\/([^/?#]+)(?:\?.*)?$/);
     if (raw === "/api/health" || raw.startsWith("/api/health?")) return json(response, 200, HEALTH, head);
     if (raw === "/api/runs" || raw.startsWith("/api/runs?")) return json(response, 200, await repository.listRuns(), head);
-    if (api) { const id = decodeSegment(api[1]); if (!id || id.includes("\0") || id.includes("/") || id.includes("\\") || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(id)) return error(response, 400, "UNSAFE_COMPARISON_ID", "Unsafe comparison ID.", head); try { return json(response, 200, await repository.getRun(id), head); } catch (e) { const code = (e as { code?: string }).code; return error(response, code === "INVALID_RUN" ? 422 : code === "UNSAFE_COMPARISON_ID" ? 400 : 404, code === "INVALID_RUN" ? "INVALID_RUN" : code === "UNSAFE_COMPARISON_ID" ? "UNSAFE_COMPARISON_ID" : "UNKNOWN_COMPARISON_ID", code === "INVALID_RUN" ? "Persisted run is invalid." : code === "UNSAFE_COMPARISON_ID" ? "Unsafe comparison ID." : "Unknown comparison ID.", head); } }
+    if (api) { const id = decodeSegment(api[1]); if (!id || id.includes("\0") || id.includes("/") || id.includes("\\") || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(id)) return error(response, 400, "UNSAFE_COMPARISON_ID", "Unsafe comparison ID.", head); try { return json(response, 200, await repository.getRun(id), head); } catch (e) { const mapped = runError((e as { code?: string }).code); return error(response, mapped.status, mapped.code, mapped.message, head); } }
     if (/(?:%2e|%2f|%5c)/i.test(raw) || raw.includes("..") || raw.includes("\\") || raw.startsWith("/~")) return error(response, 400, "INVALID_PATH", "Invalid path.", head);
     const path = new URL(raw, "http://localhost").pathname;
     const shell = path === "/" || path === "/compiler/" || path === "/experiment/" || path === "/evidence/" || path === "/runs/" || /^\/runs\/[A-Za-z0-9][A-Za-z0-9._:-]{0,119}\/$/.test(path);

@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { createStableId } from "./stable-id.js";
 import type { IntelligenceFinding } from "./model.js";
+import type { DegradationEvidence } from "../core/types.js";
 
 export type GitHistoryEventKind = "rename" | "deletion" | "migration" | "replacement";
 export interface GitHistoryRecord { commitId: string; status: string; path?: string; oldPath?: string; newPath?: string; similarity?: number; evidenceIds?: string[]; replacementPath?: string; replacedPath?: string; date?: string; summary?: string; paths?: string[]; parents?: string[]; }
 export interface GitHistoryEvent { id: string; kind: GitHistoryEventKind; commitId: string; affectedPaths: string[]; evidenceIds: string[]; summary: string; explanation: string; }
 export interface GitHistoryAnalysisInput { records?: readonly GitHistoryRecord[]; repositoryPath?: string; maxCommits?: number; maxRecords?: number; maxAgeDays?: number; }
-export interface GitHistoryAnalysisResult { events: GitHistoryEvent[]; findings: IntelligenceFinding[]; records: GitHistoryRecord[]; availability: "available" | "unavailable"; metadata: { commitCount: number; ageCutoff: "HEAD-relative"; shallow: boolean; truncated: boolean; }; }
+export interface GitHistoryAnalysisResult { events: GitHistoryEvent[]; findings: IntelligenceFinding[]; records: GitHistoryRecord[]; availability: "available" | "unavailable"; degradations?: DegradationEvidence[]; metadata: { commitCount: number; ageCutoff: "HEAD-relative"; shallow: boolean; truncated: boolean; }; }
 
 const pathOk = (value: unknown): value is string => typeof value === "string" && value.length > 0 && !value.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(value) && !value.split("/").includes("..") && !value.split("/").includes("") && !value.includes("\\");
 const clean = (values: readonly string[] | undefined): string[] => [...new Set((values ?? []).filter((v): v is string => typeof v === "string" && v.length > 0))].sort();
@@ -49,5 +50,8 @@ export function analyzeGitHistory(input: GitHistoryAnalysisInput): GitHistoryAna
   const events: GitHistoryEvent[] = []; const add = (kind: GitHistoryEventKind, r: GitHistoryRecord, paths: string[], text: string): void => { const affectedPaths = clean(paths); const evidenceIds = clean(r.evidenceIds); events.push({ id: createStableId("history", ["git-history", kind, r.commitId, affectedPaths, evidenceIds]), kind, commitId: r.commitId, affectedPaths, evidenceIds, summary: text, explanation: `${text} Evidence is limited to supplied commit ${r.commitId} and paths.` }); };
   for (const r of accepted) { const status = r.status.toUpperCase(); if (r.oldPath && r.newPath && (status.startsWith("R") || (typeof r.similarity === "number" && r.similarity >= 0.8))) { const kind = /pages|api|route|action/.test(`${r.oldPath}/${r.newPath}`) ? "migration" : "rename"; add(kind, r, [r.oldPath, r.newPath], `${kind === "rename" ? "Renamed" : "Migrated"} ${r.oldPath} to ${r.newPath}.`); } else if (status === "D" && r.path) add("deletion", r, [r.path], `Deleted ${r.path}.`); else if (status === "A" && r.path) { const deletion = accepted.find(d => d.commitId === r.commitId && d.status === "D" && d.path && stem(d.path) === stem(r.path!) && d.path.split("/").pop() === r.path!.split("/").pop()); if (deletion) add("replacement", r, [deletion.path!, r.path], `Replaced ${deletion.path} with ${r.path}.`); } }
   const unique = [...new Map(events.map(e => [e.id, e])).values()].sort((a, b) => a.id.localeCompare(b.id));
-  return { events: unique, findings: unique.map(e => ({ id: createStableId("finding", ["git-history-finding", e.id]), kind: "exception", summary: e.summary, evidenceIds: e.evidenceIds, affectedRuleIds: [], severity: "info", status: "open", explanation: e.explanation })), records, availability: available ? "available" : "unavailable", metadata: { commitCount: new Set(records.map(r => r.commitId)).size, ageCutoff: "HEAD-relative", shallow: loaded.shallow, truncated: loaded.truncated } };
+  const degradations: DegradationEvidence[] = [];
+  if (!available) degradations.push({ code: "NO_GIT_HISTORY", message: "Git history is unavailable or contains no commits." });
+  if (loaded.shallow) degradations.push({ code: "SHALLOW_HISTORY", message: "Git history is shallow; history-derived evidence is partial." });
+  return { events: unique, findings: unique.map(e => ({ id: createStableId("finding", ["git-history-finding", e.id]), kind: "exception", summary: e.summary, evidenceIds: e.evidenceIds, affectedRuleIds: [], severity: "info", status: "open", explanation: e.explanation })), records, availability: available ? "available" : "unavailable", degradations, metadata: { commitCount: new Set(records.map(r => r.commitId)).size, ageCutoff: "HEAD-relative", shallow: loaded.shallow, truncated: loaded.truncated } };
 }

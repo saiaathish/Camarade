@@ -67,9 +67,10 @@ describe("hero fixture template", () => {
   });
 
   it("starts with a passing HTTP 429 test", () => {
-    const stdout = execFileSync("npm", ["test", "--", "--test-reporter=spec"], {
+    const stdout = execFileSync(process.platform === "win32" ? "npm.cmd" : "npm", ["test", "--", "--test-reporter=spec"], {
       cwd: templatePath,
-      encoding: "utf8"
+      encoding: "utf8",
+      shell: process.platform === "win32"
     });
     expect(stdout).toContain("public search returns HTTP 429");
   });
@@ -136,13 +137,21 @@ describe("createHeroFixture", () => {
     cleanupPaths.push(parent);
     const bin = join(parent, "bin");
     await mkdir(bin);
-    const fakeGit = join(bin, "git");
-    await writeFile(fakeGit, "#!/bin/sh\necho 'simulated git failure' >&2\nexit 42\n");
-    await chmod(fakeGit, 0o755);
+    const fakeGit = join(bin, process.platform === "win32" ? "git.mjs" : "git");
+    await writeFile(fakeGit, process.platform === "win32"
+      ? "process.stderr.write('simulated git failure\\n'); process.exit(42);\n"
+      : "#!/bin/sh\necho 'simulated git failure' >&2\nexit 42\n");
+    if (process.platform !== "win32") await chmod(fakeGit, 0o755);
+    if (process.platform === "win32") {
+      await writeFile(join(bin, "git.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0git.mjs" %*\r\n`);
+    }
 
     const destination = join(parent, "fixture");
     const originalPath = process.env.PATH;
-    process.env.PATH = `${bin}:${originalPath ?? ""}`;
+    const originalWindowsPath = process.env.Path;
+    const nextPath = `${bin}${process.platform === "win32" ? ";" : ":"}${originalPath ?? originalWindowsPath ?? ""}`;
+    process.env.PATH = nextPath;
+    if (process.platform === "win32") process.env.Path = nextPath;
     try {
       await expect(createHeroFixture(destination)).rejects.toThrow(
         /Git command failed \(git init .*\): simulated git failure/u
@@ -150,6 +159,10 @@ describe("createHeroFixture", () => {
     } finally {
       if (originalPath === undefined) delete process.env.PATH;
       else process.env.PATH = originalPath;
+      if (process.platform === "win32") {
+        if (originalWindowsPath === undefined) delete process.env.Path;
+        else process.env.Path = originalWindowsPath;
+      }
     }
     await expect(lstat(destination)).rejects.toThrow();
   });

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { collectDiff } from "../src/evaluator/collect-diff.js";
 
 const roots: string[] = [];
+const HANGING_GIT_TEST_TIMEOUT_MS = 1_000;
 
 async function temporaryDirectory(): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "camarade-evaluator-bounds-"));
@@ -19,29 +20,45 @@ async function withFakeGit(
   const repositoryPath = await temporaryDirectory();
   const binPath = join(repositoryPath, "bin");
   await mkdir(binPath);
-  const gitPath = join(binPath, "git");
-  await writeFile(
-    gitPath,
-    `#!/usr/bin/env node
+  const script = `#!/usr/bin/env node
 if (process.argv[2] === "status") {
 ${behavior}
 }
-`
+`;
+  const gitPath = join(binPath, "git");
+  await writeFile(
+    process.platform === "win32" ? join(binPath, "git.mjs") : gitPath,
+    script
   );
-  await chmod(gitPath, 0o755);
+  if (process.platform !== "win32") await chmod(gitPath, 0o755);
+  if (process.platform === "win32") {
+    await writeFile(join(binPath, "git.cmd"), `@echo off\r\n"${process.execPath}" "%~dp0git.mjs" %*\r\n`);
+  }
 
   const previousPath = process.env.PATH;
-  process.env.PATH = `${binPath}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;
+  const previousWindowsPath = process.env.Path;
+  const nextPath = `${binPath}${process.platform === "win32" ? ";" : ":"}${previousPath ?? previousWindowsPath ?? ""}`;
+  process.env.PATH = nextPath;
+  if (process.platform === "win32") process.env.Path = nextPath;
   try {
     await callback(repositoryPath);
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
+    if (process.platform === "win32") {
+      if (previousWindowsPath === undefined) delete process.env.Path;
+      else process.env.Path = previousWindowsPath;
+    }
   }
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map((path) => rm(path, {
+    recursive: true,
+    force: true,
+    maxRetries: process.platform === "win32" ? 10 : 0,
+    retryDelay: process.platform === "win32" ? 100 : 0,
+  })));
 });
 
 describe("collectDiff Git subprocess bounds", () => {
@@ -50,8 +67,8 @@ describe("collectDiff Git subprocess bounds", () => {
       `process.on("SIGTERM", () => process.exit(0));
 setInterval(() => {}, 1_000);`,
       async (repositoryPath) => {
-        await expect(collectDiff(repositoryPath, { gitTimeoutMs: 40 })).rejects.toThrow(
-          'Git evidence command timed out after 40 ms: git "status" "--short"'
+        await expect(collectDiff(repositoryPath, { gitTimeoutMs: HANGING_GIT_TEST_TIMEOUT_MS })).rejects.toThrow(
+          `Git evidence command timed out after ${HANGING_GIT_TEST_TIMEOUT_MS} ms: git "status" "--short"`
         );
       }
     );

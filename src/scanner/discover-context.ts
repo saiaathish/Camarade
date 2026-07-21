@@ -1,10 +1,8 @@
 import { lstat, readdir, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import type { ContextSourceKind } from "../core/types.js";
+import type { ContextSourceKind, DegradationCode } from "../core/types.js";
 
 const ROOT_SOURCES = [
-  ["AGENTS.md", "agents"],
-  ["CLAUDE.md", "claude"],
   ["README.md", "readme"],
   ["package.json", "configuration"],
   ["camarade.run.yaml", "configuration"]
@@ -17,6 +15,7 @@ const TREE_SOURCES = [
 
 const COPILOT_SOURCE = ".github/copilot-instructions.md";
 const EXCLUDED_SEGMENTS = new Set([".camarade", ".git", "node_modules", "dist", "coverage"]);
+const MAX_REPOSITORY_FILES = 100_000;
 
 export type ContextSkipReason =
   | "excluded"
@@ -33,6 +32,7 @@ export interface ContextSkipEvidence {
   absolutePath: string;
   reason: ContextSkipReason;
   detail: string;
+  code?: DegradationCode;
 }
 
 export interface DiscoveredContextFile {
@@ -48,9 +48,70 @@ export interface ContextDiscoveryResult {
 }
 
 export class ContextDiscoveryError extends Error {
-  constructor(message: string, cause?: unknown) {
+  readonly code?: DegradationCode;
+
+  constructor(message: string, cause?: unknown, code?: DegradationCode) {
     super(message, { cause });
     this.name = "ContextDiscoveryError";
+    this.code = code;
+  }
+}
+
+function nestedInstructionKind(name: string): ContextSourceKind | undefined {
+  if (name === "AGENTS.md") return "agents";
+  if (name === "CLAUDE.md") return "claude";
+  return undefined;
+}
+
+async function discoverInstructionTree(
+  repositoryRoot: string,
+  relativeDirectory: string,
+  files: DiscoveredContextFile[],
+  skipped: ContextSkipEvidence[],
+  ancestorTargets: ReadonlySet<string>,
+  repositoryFileCount: { value: number }
+): Promise<void> {
+  if (relativeDirectory !== "" && hasExcludedSegment(relativeDirectory)) return;
+  const inspected = relativeDirectory === ""
+    ? { targetPath: repositoryRoot, targetIsDirectory: true, targetIsFile: false }
+    : await inspectPath(repositoryRoot, relativeDirectory, skipped);
+  if (inspected === null || !inspected.targetIsDirectory) return;
+  if (ancestorTargets.has(inspected.targetPath)) {
+    skipped.push(evidence(repositoryRoot, relativeDirectory, "symlink-cycle", "Directory symbolic link forms a traversal cycle."));
+    return;
+  }
+  let entries;
+  try {
+    entries = await readdir(inspected.targetPath, { withFileTypes: true });
+  } catch {
+    skipped.push(evidence(repositoryRoot, relativeDirectory, "unreadable", "Directory entries could not be read."));
+    return;
+  }
+  const nextAncestors = new Set(ancestorTargets);
+  nextAncestors.add(inspected.targetPath);
+  for (const name of entries.map((entry) => entry.name).sort()) {
+    const childPath = relativeDirectory === "" ? name : `${relativeDirectory}/${name}`;
+    if (hasExcludedSegment(childPath)) continue;
+    const child = await inspectPath(repositoryRoot, childPath, skipped);
+    if (child === null) continue;
+    if (child.targetIsDirectory) {
+      await discoverInstructionTree(repositoryRoot, childPath, files, skipped, nextAncestors, repositoryFileCount);
+      continue;
+    }
+    if (child.targetIsFile) {
+      repositoryFileCount.value += 1;
+      if (repositoryFileCount.value > MAX_REPOSITORY_FILES) {
+        throw new ContextDiscoveryError(
+          `Repository contains more than the ${MAX_REPOSITORY_FILES}-file discovery limit.`,
+          undefined,
+          "REPOSITORY_TOO_LARGE"
+        );
+      }
+    }
+    const kind = nestedInstructionKind(name);
+    if (kind !== undefined && child.targetIsFile) {
+      files.push({ relativePath: childPath, absolutePath: resolve(repositoryRoot, childPath), kind });
+    }
   }
 }
 
@@ -238,7 +299,9 @@ async function discoverTree(
     if (child.targetIsDirectory) {
       await discoverTree(repositoryRoot, childPath, kind, files, skipped, nextAncestors);
     } else if (child.targetIsFile) {
-      files.push({ relativePath: childPath, absolutePath: resolve(repositoryRoot, childPath), kind });
+      if (nestedInstructionKind(name) === undefined) {
+        files.push({ relativePath: childPath, absolutePath: resolve(repositoryRoot, childPath), kind });
+      }
     } else {
       skipped.push(evidence(repositoryRoot, childPath, "not-regular-file", "Context path is not a regular file."));
     }
@@ -253,12 +316,16 @@ export async function discoverContext(repositoryPath: string): Promise<ContextDi
   for (const [relativePath, kind] of ROOT_SOURCES) {
     await discoverFile(repositoryRoot, relativePath, kind, files, skipped);
   }
+  await discoverInstructionTree(repositoryRoot, "", files, skipped, new Set(), { value: 0 });
   await discoverFile(repositoryRoot, COPILOT_SOURCE, "copilot", files, skipped);
   for (const [relativeDirectory, kind] of TREE_SOURCES) {
     await discoverTree(repositoryRoot, relativeDirectory, kind, files, skipped, new Set());
   }
 
-  files.sort(comparePaths);
-  skipped.sort(comparePaths);
-  return { repositoryRoot, files, skipped };
+  const uniqueFiles = [...new Map(files.map((file) => [file.relativePath, file])).values()].sort(comparePaths);
+  const uniqueSkipped = [...new Map(skipped.map((item) => [
+    `${item.relativePath}\0${item.reason}\0${item.detail}`,
+    item
+  ])).values()].sort(comparePaths);
+  return { repositoryRoot, files: uniqueFiles, skipped: uniqueSkipped };
 }

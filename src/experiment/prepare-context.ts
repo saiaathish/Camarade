@@ -32,9 +32,15 @@ export interface PreparedContext {
   startingCommit: string;
   archivedInstructionPaths: string[];
   neutralizedInstructionPaths: string[];
+  preservedInstructionPaths: string[];
   contextPackPath: string;
   generatedAgentsPath: string;
   worktreeAgentsPath: string;
+}
+
+function isNestedAgentsOrClaude(relativePath: string): boolean {
+  const segments = relativePath.split("/");
+  return segments.length > 1 && ["AGENTS.md", "CLAUDE.md"].includes(segments.at(-1) ?? "");
 }
 
 export class ContextPreparationError extends Error {
@@ -395,7 +401,17 @@ export async function prepareContext(options: PrepareContextOptions): Promise<Pr
   const generatedAgents = Buffer.from(options.generatedAgentsMarkdown, "utf8");
   await writeTextExclusive(generatedAgentsPath, generatedAgents, "Generated AGENTS.md contract");
 
-  for (const relativePath of instructionPaths) {
+  const selectedSources = new Set(options.contextPack.selectedSources.map(toPosixPath));
+  const preservedInstructionPaths = instructionPaths.filter((relativePath) =>
+    isNestedAgentsOrClaude(relativePath) && !selectedSources.has(relativePath));
+  const neutralizedInstructionPaths = instructionPaths.filter((relativePath) =>
+    !preservedInstructionPaths.includes(relativePath));
+
+  for (const relativePath of preservedInstructionPaths) {
+    await materializeBaselineInstruction(repositoryPath, camaradeWorktreePath, relativePath);
+  }
+
+  for (const relativePath of neutralizedInstructionPaths) {
     const candidate = resolve(camaradeWorktreePath, relativePath);
     const inspected = await inspectSafePath(candidate, camaradeWorktreePath, "Camarade instruction removal");
     if (inspected.exists) await rm(candidate, { recursive: true, force: true });
@@ -416,7 +432,8 @@ export async function prepareContext(options: PrepareContextOptions): Promise<Pr
   }
 
   const remainingCamaradeInstructions = await discoverActiveInstructionPaths(camaradeWorktreePath);
-  if (remainingCamaradeInstructions.length !== 1 || remainingCamaradeInstructions[0] !== "AGENTS.md") {
+  const expectedRemainingInstructions = ["AGENTS.md", ...preservedInstructionPaths].sort();
+  if (JSON.stringify(remainingCamaradeInstructions) !== JSON.stringify(expectedRemainingInstructions)) {
     throw new ContextPreparationError(
       `Original active instructions remain in Camarade worktree: ${remainingCamaradeInstructions.join(", ")}`
     );
@@ -430,7 +447,8 @@ export async function prepareContext(options: PrepareContextOptions): Promise<Pr
   return {
     startingCommit,
     archivedInstructionPaths: instructionPaths,
-    neutralizedInstructionPaths: instructionPaths,
+    neutralizedInstructionPaths,
+    preservedInstructionPaths,
     contextPackPath,
     generatedAgentsPath,
     worktreeAgentsPath

@@ -2,3 +2,9 @@ node_modules/
 dist/
 coverage/
 *.log
+.artifacts/
+frontend/.artifacts/
+*.tgz
+*.tar.gz
+.tmp/
+*.tmp

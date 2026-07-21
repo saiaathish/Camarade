@@ -37,6 +37,7 @@ async function gitRepository(): Promise<string> {
   git(repositoryPath, "init");
   git(repositoryPath, "config", "user.email", "test@example.com");
   git(repositoryPath, "config", "user.name", "Camarade Test");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", ".");
   git(repositoryPath, "commit", "-m", "fixture");
   return repositoryPath;
@@ -129,9 +130,11 @@ setInterval(() => {}, 1_000);
     expect(await readFile(results[0]?.stderrPath ?? "", "utf8")).toContain(
       "validation timed out after 0.5 seconds"
     );
-    expect(await readFile(results[0]?.stderrPath ?? "", "utf8")).toContain(
-      "process termination warning: simulated termination denial"
-    );
+    if (process.platform !== "win32") {
+      expect(await readFile(results[0]?.stderrPath ?? "", "utf8")).toContain(
+        "process termination warning: simulated termination denial"
+      );
+    }
     expect(await readFile(results[1]?.stdoutPath ?? "", "utf8")).toBe("continued\n");
     const descendantPid = Number(await readFile(join(cwd, "timeout-child.pid"), "utf8"));
     expect(() => process.kill(descendantPid, 0)).toThrow();

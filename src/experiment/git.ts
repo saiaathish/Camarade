@@ -26,6 +26,12 @@ export interface GitCommandOptions {
   maxBufferBytes?: number;
 }
 
+interface GitProcessInvocation {
+  command: string;
+  args: string[];
+  windowsVerbatimArguments?: boolean;
+}
+
 export interface ExperimentPreflightOptions {
   repositoryPath: string;
   startingCommit: string;
@@ -44,6 +50,56 @@ export interface ExperimentPreflight {
 
 function displayCommand(args: readonly string[]): string {
   return ["git", ...args].map((argument) => JSON.stringify(argument)).join(" ");
+}
+
+const WINDOWS_META_CHARACTERS = /([()\][%!^"`<>&|;, *?])/g;
+
+function windowsEscapeCommand(value: string): string {
+  return value.replace(WINDOWS_META_CHARACTERS, "^$1");
+}
+
+function windowsEscapeArgument(value: string): string {
+  const escaped = value
+    .replace(/(?=(\\+?)?)\1"/gu, "$1$1\\\"")
+    .replace(/(?=(\\+?)?)\1$/gu, "$1$1");
+  return `"${escaped.replace(WINDOWS_META_CHARACTERS, "^$1")}"`;
+}
+
+async function windowsGitPath(environment: NodeJS.ProcessEnv): Promise<string | undefined> {
+  const pathValue = environment.Path ?? environment.PATH;
+  if (pathValue === undefined) return undefined;
+  const extensions = (environment.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((extension) => extension.trim().toLowerCase())
+    .filter((extension) => extension !== "");
+  for (const directory of pathValue.split(";")) {
+    const base = directory === "" ? process.cwd() : directory;
+    for (const extension of extensions) {
+      const candidate = resolve(base, `git${extension}`);
+      const metadata = await lstat(candidate).catch(() => undefined);
+      if (metadata?.isFile() && !metadata.isSymbolicLink()) return candidate;
+    }
+  }
+  return undefined;
+}
+
+export async function resolveGitInvocation(
+  args: readonly string[],
+  environment: NodeJS.ProcessEnv,
+): Promise<GitProcessInvocation> {
+  if (process.platform !== "win32") return { command: "git", args: [...args] };
+  const path = await windowsGitPath(environment);
+  if (path === undefined) return { command: "git", args: [...args] };
+  const extension = path.slice(path.lastIndexOf(".")).toLowerCase();
+  if (extension === ".cmd" || extension === ".bat") {
+    const commandLine = `"${[windowsEscapeCommand(path), ...args.map(windowsEscapeArgument)].join(" ")}"`;
+    return {
+      command: environment.ComSpec ?? environment.COMSPEC ?? "cmd.exe",
+      args: ["/d", "/s", "/c", commandLine],
+      windowsVerbatimArguments: true,
+    };
+  }
+  return { command: path, args: [...args] };
 }
 
 function resolveGitCommandOptions(options: GitCommandOptions): Required<GitCommandOptions> {
@@ -66,14 +122,17 @@ export function executeGit(
   options: GitCommandOptions = {}
 ): Promise<GitCommandResult> {
   const limits = resolveGitCommandOptions(options);
+  const environment = process.env;
   return new Promise((resolveCommand, rejectCommand) => {
-    const child = spawn("git", [...args], {
-      cwd,
-      detached: process.platform !== "win32",
-      shell: false,
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"]
-    });
+    void resolveGitInvocation(args, environment).then((invocation) => {
+      const child = spawn(invocation.command, invocation.args, {
+        cwd,
+        detached: process.platform !== "win32",
+        shell: false,
+        windowsHide: true,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? false,
+        stdio: ["pipe", "pipe", "pipe"]
+      });
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
@@ -117,23 +176,26 @@ export function executeGit(
       }
     };
 
-    child.stdout.on("data", (chunk: Buffer) => collect("stdout", chunk));
-    child.stderr.on("data", (chunk: Buffer) => collect("stderr", chunk));
-    child.once("error", (cause) => {
-      fail(`${displayCommand(args)} could not start in ${cwd}: ${cause.message}`, cause);
-    });
-    child.once("close", (exitCode) => {
-      if (!finish()) return;
-      const stdout = Buffer.concat(stdoutChunks).toString("utf8");
-      const stderr = Buffer.concat(stderrChunks).toString("utf8");
-      if (exitCode === 0) {
-        resolveCommand({ stdout, stderr });
-        return;
-      }
-      const detail = stderr.trim() || stdout.trim() || `exit code ${String(exitCode)}`;
-      rejectCommand(new GitControllerError(
-        `${displayCommand(args)} failed in ${cwd}: ${detail}`
-      ));
+      child.stdout.on("data", (chunk: Buffer) => collect("stdout", chunk));
+      child.stderr.on("data", (chunk: Buffer) => collect("stderr", chunk));
+      child.once("error", (cause) => {
+        fail(`${displayCommand(args)} could not start in ${cwd}: ${cause.message}`, cause);
+      });
+      child.once("close", (exitCode) => {
+        if (!finish()) return;
+        const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+        const stderr = Buffer.concat(stderrChunks).toString("utf8");
+        if (exitCode === 0) {
+          resolveCommand({ stdout, stderr });
+          return;
+        }
+        const detail = stderr.trim() || stdout.trim() || `exit code ${String(exitCode)}`;
+        rejectCommand(new GitControllerError(
+          `${displayCommand(args)} failed in ${cwd}: ${detail}`
+        ));
+      });
+    }).catch((cause: unknown) => {
+      rejectCommand(cause instanceof Error ? cause : new Error(String(cause)));
     });
   });
 }
@@ -151,12 +213,22 @@ export function assertSafeComparisonId(comparisonId: string): void {
 }
 
 export function isPathWithin(parentPath: string, candidatePath: string): boolean {
-  const pathFromParent = relative(resolve(parentPath), resolve(candidatePath));
+  const parent = resolve(parentPath);
+  const candidate = resolve(candidatePath);
+  const comparisonParent = process.platform === "win32" ? parent.toLowerCase() : parent;
+  const comparisonCandidate = process.platform === "win32" ? candidate.toLowerCase() : candidate;
+  const pathFromParent = relative(comparisonParent, comparisonCandidate);
   return pathFromParent === "" || (
     !isAbsolute(pathFromParent) &&
     pathFromParent !== ".." &&
     !pathFromParent.startsWith(`..${sep}`)
   );
+}
+
+export function sameFilesystemPath(left: string, right: string): boolean {
+  const a = resolve(left);
+  const b = resolve(right);
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 export async function pathExists(path: string): Promise<boolean> {

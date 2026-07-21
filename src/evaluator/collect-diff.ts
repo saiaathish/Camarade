@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { basename } from "node:path";
 import { terminateProcessTree } from "../core/terminate-process-tree.js";
+import { createChildEnvironment } from "../core/process-environment.js";
+import { resolveGitInvocation } from "../experiment/git.js";
 
 export interface CollectDiffOptions {
   excludedImplementationPaths?: readonly string[];
@@ -82,12 +84,16 @@ function runGit(
   acceptedExitCodes: readonly number[] = [0]
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("git", args, {
-      cwd: repositoryPath,
-      detached: process.platform !== "win32",
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
+    const environment = createChildEnvironment();
+    void resolveGitInvocation(args, environment).then((invocation) => {
+      const child = spawn(invocation.command, invocation.args, {
+        cwd: repositoryPath,
+        detached: process.platform !== "win32",
+        shell: false,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? false,
+        env: environment,
+        stdio: ["ignore", "pipe", "pipe"]
+      });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let stdoutBytes = 0;
@@ -127,7 +133,7 @@ function runGit(
       return nextBytes;
     };
 
-    child.stdout.on("data", (chunk: Buffer) => {
+      child.stdout.on("data", (chunk: Buffer) => {
       const nextBytes = collectOutput(
         "stdout",
         stdout,
@@ -137,7 +143,7 @@ function runGit(
       );
       if (nextBytes !== undefined) stdoutBytes = nextBytes;
     });
-    child.stderr.on("data", (chunk: Buffer) => {
+      child.stderr.on("data", (chunk: Buffer) => {
       const nextBytes = collectOutput(
         "stderr",
         stderr,
@@ -147,23 +153,24 @@ function runGit(
       );
       if (nextBytes !== undefined) stderrBytes = nextBytes;
     });
-    child.once("error", (error) => {
-      rejectOnce(new Error(`Unable to start Git evidence command: ${command}: ${error.message}`, { cause: error }));
-    });
-    child.once("close", (exitCode) => {
-      if (settled) return;
-      settled = true;
-      if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
-      const output = Buffer.concat(stdout).toString("utf8");
-      if (exitCode !== null && acceptedExitCodes.includes(exitCode)) resolve(output);
-      else {
-        const detail = Buffer.concat(stderr).toString("utf8").trim();
-        reject(new Error(`${command} failed with exit code ${String(exitCode)}${detail === "" ? "" : `: ${detail}`}`));
-      }
-    });
-    timeoutTimer = setTimeout(() => {
-      failAndTerminate(`Git evidence command timed out after ${String(limits.timeoutMs)} ms`);
-    }, limits.timeoutMs);
+      child.once("error", (error) => {
+        rejectOnce(new Error(`Unable to start Git evidence command: ${command}: ${error.message}`, { cause: error }));
+      });
+      child.once("close", (exitCode) => {
+        if (settled) return;
+        settled = true;
+        if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+        const output = Buffer.concat(stdout).toString("utf8");
+        if (exitCode !== null && acceptedExitCodes.includes(exitCode)) resolve(output);
+        else {
+          const detail = Buffer.concat(stderr).toString("utf8").trim();
+          reject(new Error(`${command} failed with exit code ${String(exitCode)}${detail === "" ? "" : `: ${detail}`}`));
+        }
+      });
+      timeoutTimer = setTimeout(() => {
+        failAndTerminate(`Git evidence command timed out after ${String(limits.timeoutMs)} ms`);
+      }, limits.timeoutMs);
+    }).catch((error: unknown) => reject(error instanceof Error ? error : new Error(String(error))));
   });
 }
 

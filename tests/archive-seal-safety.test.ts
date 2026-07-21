@@ -35,7 +35,7 @@ vi.mock("node:fs/promises", async () => {
     },
     mkdir: async (path: string, options?: Parameters<typeof actual.mkdir>[1]) => {
       const result = await actual.mkdir(path, options);
-      const markerIndex = fsMockState.replaceArchive.indexOf("/.camarade/");
+      const markerIndex = fsMockState.replaceArchive.replaceAll("\\", "/").indexOf("/.camarade/");
       const archiveSuffix = markerIndex === -1 ? "" : fsMockState.replaceArchive.slice(markerIndex);
       if (archiveSuffix !== "" && resolve(path).endsWith(archiveSuffix)) {
         fsMockState.archiveMkdirCount += 1;

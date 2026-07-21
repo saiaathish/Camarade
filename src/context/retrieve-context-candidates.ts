@@ -204,6 +204,13 @@ function excludedByScope(relativePath: string, excludedScopes: readonly string[]
   return excludedScopes.some((scope) => pathMatches(scope, relativePath));
 }
 
+function scopedRuleApplies(rule: RepositoryRule, relevantPaths: ReadonlySet<string>): boolean {
+  if (rule.scope.include.length === 0 || rule.scope.include.some((scope) => scope === "**" || scope === "**/*")) return true;
+  return [...relevantPaths].some((relativePath) =>
+    rule.scope.include.some((scope) => pathMatches(scope, relativePath)) &&
+    !excludedByScope(relativePath, rule.scope.exclude));
+}
+
 function sourcePathResolver(input: RetrieveContextCandidatesInput): {
   knownIds: ReadonlySet<string>;
   pathsFor(ids: readonly string[]): string[];
@@ -426,6 +433,7 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
   }
 
   const files = relevantFiles(input, inventoryPaths);
+  const taskRelevantPaths = new Set([...files.paths, ...input.task.explicitPaths]);
   const directIds = new Set<string>();
   for (const filePath of files.paths) {
     const file = input.inventory.files.find((item) => item.relativePath === filePath);
@@ -434,8 +442,13 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
   }
 
   const ruleSignals = new Map<string, string[]>();
+  const ruleApplicability = new Map<string, boolean>();
   const protectedPathsByRule = new Map<string, string[]>();
   for (const rule of input.artifact.rules) {
+    const rootProtection = rule.polarity === "prohibit" && provenance.pathsFor(rule.evidenceIds)
+      .some((sourcePath) => sourcePath === "AGENTS.md" || sourcePath === "CLAUDE.md");
+    const applies = rootProtection || scopedRuleApplies(rule, taskRelevantPaths);
+    ruleApplicability.set(rule.id, applies);
     const referencedPaths = referencePathsByRule.get(rule.id) ?? [];
     const scopePaths = exactInventoryPaths(rule.scope.include, inventoryPaths);
     const protectedPaths = rule.polarity === "prohibit"
@@ -443,10 +456,10 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
         .filter((relativePath) => !excludedByScope(relativePath, rule.scope.exclude))
       : [];
     protectedPathsByRule.set(rule.id, protectedPaths);
-    const signals = taskSignals(input.task, `${rule.statement} ${rule.normalizedSubject} ${rule.normalizedAction}`, [
+    const signals = applies ? taskSignals(input.task, `${rule.statement} ${rule.normalizedSubject} ${rule.normalizedAction}`, [
       ...referencedPaths,
       ...rule.scope.include
-    ]);
+    ]) : [];
     for (const explicitPath of input.task.explicitPaths) {
       if (!excludedByScope(explicitPath, rule.scope.exclude)) continue;
       const taskPathSignal = `TASK_PATH_MATCH:${explicitPath}`;
@@ -468,6 +481,8 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
   }
 
   for (const finding of input.artifact.findings) {
+    const affectedRules = finding.affectedRuleIds.map((id) => ruleApplicability.get(id));
+    if (affectedRules.length > 0 && affectedRules.every((applies) => applies === false)) continue;
     const signals = taskSignals(input.task, `${finding.summary} ${finding.explanation}`);
     if (signals.length > 0 || finding.affectedRuleIds.some((id) => directIds.has(id))) {
       directIds.add(finding.id);
@@ -493,6 +508,11 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
   const seeds: CandidateSeed[] = [];
 
   for (const rule of [...input.artifact.rules].sort((left, right) => left.id.localeCompare(right.id))) {
+    const status = ruleStatus(rule, input.artifact);
+    // A stale or unsupported scoped rule still carries deterministic conflict
+    // evidence. Retain it long enough for hard filters to exclude it and for
+    // the resolver to preserve the applicable side of the conflict.
+    if (ruleApplicability.get(rule.id) === false && status !== "stale" && status !== "unsupported") continue;
     const baseSignals = ruleSignals.get(rule.id) ?? [];
     if (baseSignals.length === 0 && !neighborhood.has(rule.id)) continue;
     const protectedPaths = protectedPathsByRule.get(rule.id) ?? [];
@@ -513,7 +533,7 @@ export function retrieveContextCandidates(input: RetrieveContextCandidatesInput)
       evidenceIds,
       scopes: ruleScopes(rule),
       confidence: confidenceFromEvidence(rule.evidenceIds, input.artifact),
-      intelligenceStatus: ruleStatus(rule, input.artifact),
+      intelligenceStatus: status,
       deterministicSignals: signals,
       priority: priorityFor(signals, 6)
     });

@@ -3,6 +3,11 @@ import { dirname, resolve } from "node:path";
 import type { AgentRunResult } from "../core/types.js";
 import { assertProcessTimeoutMilliseconds } from "../core/process-timeout.js";
 import type { AgentAdapter, AgentRunInput } from "./agent-adapter.js";
+import {
+  runExecutionAdapter,
+  type ExecutionAdapterLifecycle,
+  type ExecutionCancellationReason,
+} from "./execution-adapter.js";
 
 export const SIMULATED_EXECUTION_LABEL = "SIMULATED EXECUTION — NOT BENCHMARK EVIDENCE";
 export const FIXTURE_USAGE_UNAVAILABLE_REASON =
@@ -99,12 +104,21 @@ async function writeSimulationLogs(
   }
 }
 
-export class FixtureAdapter implements AgentAdapter {
+export class FixtureAdapter implements AgentAdapter, ExecutionAdapterLifecycle<
+  AgentRunInput,
+  AgentRunInput,
+  AgentRunResult,
+  AgentRunResult,
+  AgentRunResult
+> {
   readonly id = "fixture";
 
-  async execute(input: AgentRunInput): Promise<AgentRunResult> {
+  async prepare(input: AgentRunInput): Promise<AgentRunInput> {
     assertProcessTimeoutMilliseconds(input.timeoutMs, "Agent timeoutMs");
+    return input;
+  }
 
+  async executePrepared(input: AgentRunInput): Promise<AgentRunResult> {
     const startedAt = new Date().toISOString();
     const worktreePath = resolve(input.worktreePath);
     const stdoutPath = resolve(input.stdoutPath);
@@ -123,5 +137,25 @@ export class FixtureAdapter implements AgentAdapter {
       stderrPath,
       usage: { unavailableReason: FIXTURE_USAGE_UNAVAILABLE_REASON }
     };
+  }
+
+  async capture(_prepared: AgentRunInput, execution: AgentRunResult): Promise<AgentRunResult> {
+    return execution;
+  }
+
+  cancel(
+    _prepared: AgentRunInput,
+    _execution: AgentRunResult | undefined,
+    _reason: ExecutionCancellationReason,
+  ): void {}
+
+  cleanup(): void {}
+
+  normalize(captured: AgentRunResult): AgentRunResult {
+    return captured;
+  }
+
+  async execute(input: AgentRunInput): Promise<AgentRunResult> {
+    return runExecutionAdapter(this, input);
   }
 }

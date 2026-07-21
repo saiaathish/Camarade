@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { createChildEnvironment } from "../core/process-environment.js";
+import { createValidationEnvironment } from "../core/process-environment.js";
 import { canonicalJson, sha256 } from "../context/context-serialization.js";
 import { writeJsonExclusive } from "../artifacts/write-manifest.js";
 import { validateFairExperimentRequest } from "./validate-experiment-request.js";
@@ -29,6 +29,7 @@ import type {
   ExperimentLifecycleStatus,
   ExperimentManifest,
   ExperimentSummary,
+  ConditionExecutionResult,
 } from "./experiment-types.js";
 import type { EvaluationSealReference } from "../evaluation/evaluation-seal-types.js";
 import { executeExperimentEvaluation } from "../evaluation/execute-experiment-evaluation.js";
@@ -36,6 +37,7 @@ import type { EvaluationExecutionReference } from "../evaluation/evaluation-exec
 import { measureExperiment } from "../evaluation/measurement.js";
 import { scorePair, resolveStatus, resolveOutcomeWithOverride, resolveMaterialOverride, type ConditionEvidence } from "../evaluation/scoring.js";
 import { writeScoringArtifacts, validateScoringArtifacts } from "../evaluation/scoring-artifacts.js";
+import { sameFilesystemPath } from "./git.js";
 export interface RunFairExperimentOptions {
   prepareOptions?: PrepareFairExperimentOptions;
   executeOptions?: Record<string, unknown>;
@@ -44,6 +46,38 @@ export interface RunFairExperimentOptions {
   afterValidationsBeforeSourceVerification?: () => Promise<void>;
   now?: () => Date;
 }
+
+export function scoringEvidenceForCondition(
+  condition: Pick<
+    ConditionExecutionResult,
+    | "actualTokenUsageAvailable"
+    | "changedFiles"
+    | "degradations"
+    | "durationMs"
+    | "inputTokens"
+    | "outputTokens"
+  >,
+): ConditionEvidence {
+  return {
+    correctness: [],
+    requirements: [],
+    rules: [],
+    changes: {
+      expectedPaths: condition.changedFiles,
+      unnecessaryPaths: [],
+      protectedPathViolations: [],
+      missingRequiredChangedPaths: [],
+    },
+    totalTokens: condition.actualTokenUsageAvailable
+      ? (condition.inputTokens ?? 0) + (condition.outputTokens ?? 0)
+      : undefined,
+    agentDurationMs: condition.durationMs,
+    degradationCodes: [
+      ...new Set((condition.degradations ?? []).map((degradation) => degradation.code)),
+    ].sort(),
+  };
+}
+
 function envEvidence(env: NodeJS.ProcessEnv): ValidationEnvironmentEvidence {
   const keys = Object.keys(env)
     .filter((k) => !new Set(["PWD", "OLDPWD", "SHLVL", "_"]).has(k))
@@ -94,7 +128,7 @@ export async function runFairExperiment(
   const executed = await executePreparedExperiment(prepared);
   if (executed.fairnessAudit.checks.length === 0)
     throw new Error("Execution fairness audit missing checks.");
-  const env = createChildEnvironment();
+  const env = createValidationEnvironment();
   const evidence = envEvidence(env);
   const results: Partial<
     Record<"baseline" | "camarade", ConditionValidationResult>
@@ -150,7 +184,7 @@ export async function runFairExperiment(
     prepared.startingState.repositoryPath,
   );
   const sourceModified =
-    sourceState.repositoryPath !== prepared.startingState.repositoryPath ||
+    !sameFilesystemPath(sourceState.repositoryPath, prepared.startingState.repositoryPath) ||
     sourceState.startingCommit !== prepared.startingState.startingCommit ||
     sourceState.startingTree !== prepared.startingState.startingTree ||
     sourceState.trackedTreeHash !== prepared.startingState.trackedTreeHash ||
@@ -216,8 +250,10 @@ export async function runFairExperiment(
     prepared,
     manifestPath: resolve(prepared.layout.experimentDirectory, "experiment-manifest.json"),
   } as FairExperimentResult);
-  const scoringEvidence = (c: typeof executed.baseline.result): ConditionEvidence => ({ correctness: [], requirements: [], rules: [], changes: { expectedPaths: c.changedFiles, unnecessaryPaths: [], protectedPathViolations: [], missingRequiredChangedPaths: [] }, totalTokens: c.actualTokenUsageAvailable ? (c.inputTokens ?? 0) + (c.outputTokens ?? 0) : undefined, agentDurationMs: c.durationMs });
-  const scores = scorePair(scoringEvidence(executed.baseline.result), scoringEvidence(executed.camarade.result));
+  const scores = scorePair(
+    scoringEvidenceForCondition(executed.baseline.result),
+    scoringEvidenceForCondition(executed.camarade.result),
+  );
   const scoringStatus = resolveStatus("limited", scores);
   const override = resolveMaterialOverride({ condition: "baseline" }, { condition: "camarade" }, scoringStatus);
   const resolved = resolveOutcomeWithOverride(scores.baseline, scores.camarade, scoringStatus, override);
@@ -279,15 +315,9 @@ export async function runFairExperiment(
     baselineValidationStatus: baseline.status,
     camaradeValidationStatus: camarade.status,
     cleanupSucceeded: cleanup.succeeded,
-    artifactIndexPath: manifest.artifactIndexPath,
-    manifestPath: resolve(
-      prepared.layout.experimentDirectory,
-      "experiment-manifest.json",
-    ),
-    resultPath: resolve(
-      prepared.layout.experimentDirectory,
-      "experiment-result.json",
-    ),
+    artifactIndexPath: "artifact-index.json",
+    manifestPath: "experiment-manifest.json",
+    resultPath: "experiment-result.json",
     artifacts: [],
     ...summarySeal(evaluationSeal),
     evaluationExecutionStatus: evaluationExecution?.status,

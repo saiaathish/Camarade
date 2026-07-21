@@ -42,9 +42,9 @@ it("[S37] raw precision",()=>{const p=scorePair(e({totalTokens:2}),e({totalToken
 it("[S38] display rounding source",()=>{expect(scorePair(e()).baseline.total).toBe(95);});
 it("[S39] limited no outcome",()=>{const p=scorePair(e()); expect(resolveOutcome(p.baseline,p.camarade,"limited").outcome).toBeNull();});
 it("[S40] safe score object",()=>{expect(JSON.stringify(scorePair(e()))).not.toMatch(/\/(Users|tmp)\//);});
-it("[S41] exclusive publication contract",()=>{expect(true).toBe(true);});
-it("[S42] artifact kind contract",()=>{expect(true).toBe(true);});
-it("[S43] artifact validator contract",()=>{expect(true).toBe(true);});
-it("[S44] reference consistency contract",()=>{expect(true).toBe(true);});
-it("[S45] no execution orchestration",()=>{expect(true).toBe(true);});
+it("[S41] scoring remains a pure calculation",()=>{const input=e(); const before=JSON.stringify(input); scorePair(input); expect(JSON.stringify(input)).toBe(before);});
+it("[S42] score artifact conditions are explicit",()=>{const pair=scorePair(e()); expect([pair.baseline.condition,pair.camarade.condition]).toEqual(["baseline","camarade"]);});
+it("[S43] score categories expose finite values",()=>{const score=scorePair(e()).baseline; expect([score.total,score.measurableMaximum,score.scoreOutOf].every(Number.isFinite)).toBe(true);});
+it("[S44] paired references use the same score scale",()=>{const pair=scorePair(e()); expect(pair.baseline.scoreOutOf).toBe(pair.camarade.scoreOutOf);});
+it("[S45] scoring performs no execution orchestration",()=>{expect(scorePair(e()).baseline).not.toHaveProperty("exitCode");});
 });

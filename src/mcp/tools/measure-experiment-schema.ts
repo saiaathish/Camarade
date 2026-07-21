@@ -1,7 +1,8 @@
 import { z } from "zod/v3";
+import { isSafePortableAbsolutePath } from "../../core/path-portability.js";
 export const MEASURE_CONFIRMATION = "I authorize Camarade to measure this completed experiment." as const;
 const safeId = z.string().min(1).refine(v=>v.trim()!==""&&!v.includes("/")&&!v.includes("\\")&&!v.includes("..")&&!v.includes("\0")&&!/^([A-Za-z]:|file:)/i.test(v),"comparison_id is unsafe");
-const absPath = z.string().min(1).refine(v=>v.startsWith("/")&&!v.includes("\0")&&!v.split("/").includes(".."),"path must be absolute and safe");
+const absPath = z.string().min(1).refine(isSafePortableAbsolutePath,"path must be absolute and safe");
 export const measureExperimentInputSchema = z.object({
   comparison_id: safeId.optional(), controller_root: absPath.optional(), experiment_directory: absPath.optional(),
   confirmation: z.object({confirmed:z.literal(true),statement:z.literal(MEASURE_CONFIRMATION)}).strict(),

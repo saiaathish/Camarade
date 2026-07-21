@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { createHeroFixture } from "../scripts/create-hero-fixture.js";
 const make=async()=>{const parent=await mkdtemp(join(tmpdir(),"s6-fixture-"));const f=await createHeroFixture(join(parent,"hero"),{extraFiles:[{relativePath:"fake-codex.mjs",contents:"#!/usr/bin/env node\nif(process.argv.includes('--version')){console.log('fake-codex 1.0.0');process.exit(0)}\nconsole.log(JSON.stringify({type:'result',usage:{input_tokens:1,output_tokens:1}}))\n",executable:true},{relativePath:"camarade.run.yaml",contents:"validationCommands:\n  - true\n"}]});return {parent,f};};
-const run=(p:string,a:string[])=>new Promise<{code:number|null;out:string;err:string}>((resolve,reject)=>execFile(p,a,{encoding:"utf8"},(e,out,err)=>resolve({code:e&&"code" in e?Number(e.code):0,out,err})));
+const run=(p:string,a:string[])=>new Promise<{code:number|null;out:string;err:string}>((resolve,reject)=>execFile(process.platform === "win32" && p.endsWith(".mjs") ? process.execPath : p, process.platform === "win32" && p.endsWith(".mjs") ? [p,...a] : a,{encoding:"utf8"},(e,out,err)=>resolve({code:e&&"code" in e?Number(e.code):0,out,err})));
 describe("S6-R4 fixture contract",()=>{
 it("[F01] writes fake adapter before commit",async()=>{const x=await make();expect(await readFile(join(x.f.fixturePath,"fake-codex.mjs"),"utf8")).toContain("--version");await rm(x.parent,{recursive:true,force:true});});
 it("[F02] writes run config before commit",async()=>{const x=await make();expect(await readFile(join(x.f.fixturePath,"camarade.run.yaml"),"utf8")).toContain("validationCommands");await rm(x.parent,{recursive:true,force:true});});

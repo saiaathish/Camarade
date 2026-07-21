@@ -1,4 +1,9 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe,expect,it } from "vitest";
+import { scoringEvidenceForCondition } from "../src/experiment/run-fair-experiment.js";
+import { writeScoringArtifacts } from "../src/evaluation/scoring-artifacts.js";
 import { resolveMaterialOverride,resolveStatus,scorePair } from "../src/evaluation/scoring.js";
 function e():any{return {correctness:[],requirements:[],rules:[],changes:{expectedPaths:["a"],unnecessaryPaths:[],protectedPathViolations:[],missingRequiredChangedPaths:[]}};}
 describe("S6-R2 integration",()=>{
@@ -13,17 +18,18 @@ it("[I08] production integration contract",()=>{expect(resolveMaterialOverride({
 it("[I09] production integration contract",()=>{expect(resolveMaterialOverride({condition:"baseline",materialRuleFailIds:["b"]},{condition:"camarade",materialRuleFailIds:["c"]},"valid")).toBeNull();});
 it("[I10] production integration contract",()=>{expect(resolveMaterialOverride({condition:"baseline",mandatoryCorrectnessFailIds:["b"]},{condition:"camarade"},"limited")).toBeNull();});
 it("[I11] production integration contract",()=>{expect(resolveStatus("valid",scorePair(e()),true)).toBe("invalid");});
-it("[I12] production integration contract",()=>{expect(true).toBe(true);});
-it("[I13] production integration contract",()=>{expect(true).toBe(true);});
-it("[I14] production integration contract",()=>{expect(true).toBe(true);});
-it("[I15] production integration contract",()=>{expect(true).toBe(true);});
-it("[I16] production integration contract",()=>{expect(true).toBe(true);});
-it("[I17] production integration contract",()=>{expect(true).toBe(true);});
-it("[I18] production integration contract",()=>{expect(true).toBe(true);});
-it("[I19] production integration contract",()=>{expect(true).toBe(true);});
-it("[I20] production integration contract",()=>{expect(true).toBe(true);});
-it("[I21] production integration contract",()=>{expect(true).toBe(true);});
+it("[I12] labels baseline condition",()=>{expect(scorePair(e()).baseline.condition).toBe("baseline");});
+it("[I13] labels Camarade condition",()=>{expect(scorePair(e()).camarade.condition).toBe("camarade");});
+it("[I14] scores focused changes",()=>{expect(scorePair(e()).baseline.changeFocus.score).toBe(10);});
+it("[I15] preserves measurable maximum",()=>{expect(scorePair(e()).baseline.measurableMaximum).toBe(10);});
+it("[I16] declares score scale",()=>{expect(scorePair(e()).baseline.scoreOutOf).toBe(100);});
+it("[I17] marks token telemetry unavailable",()=>{expect(scorePair(e()).baseline.limitations).toContain("TOKEN_TELEMETRY_UNAVAILABLE");});
+it("[I18] marks runtime telemetry unavailable",()=>{expect(scorePair(e()).baseline.limitations).toContain("RUNTIME_TELEMETRY_UNAVAILABLE");});
+it("[I19] limits incomplete measurable evidence",()=>{expect(resolveStatus("valid",scorePair(e()))).toBe("limited");});
+it("[I20] preserves upstream limited status",()=>{expect(resolveStatus("limited",scorePair(e()))).toBe("limited");});
+it("[I21] scoring is deterministic",()=>{expect(scorePair(e())).toEqual(scorePair(e()));});
 it("[I22] production integration contract",()=>{expect(JSON.stringify(scorePair(e()))).not.toMatch(/Users|tmp/);});
-it("[I23] production integration contract",()=>{expect(true).toBe(true);});
-it("[I24] production integration contract",()=>{expect(true).toBe(true);});
+it("[I23] scoring does not mutate evidence",()=>{const input=e(); const before=JSON.stringify(input); scorePair(input); expect(JSON.stringify(input)).toBe(before);});
+it("[I24] both conditions use equal maxima",()=>{const pair=scorePair(e()); expect(pair.baseline.measurableMaximum).toBe(pair.camarade.measurableMaximum);});
+it("[I25] persists typed condition degradation codes in public comparison limitations",async()=>{const root=await mkdtemp(join(tmpdir(),"camarade-scoring-degradation-"));try{const evidence=scoringEvidenceForCondition({actualTokenUsageAvailable:false,changedFiles:["src/a.ts"],degradations:[{code:"TELEMETRY_UNAVAILABLE",message:"Token telemetry was absent."},{code:"AGENT_AUTHENTICATION_REQUIRED",message:"Agent authentication was required."}],durationMs:1});const scores=scorePair(evidence,evidence);await writeScoringArtifacts(root,{experimentId:"degradation-001",baseline:scores.baseline,camarade:scores.camarade,status:"limited",officialBenchmarkEligible:false,outcome:null,delta:0,materialOverride:null,limitations:[...scores.baseline.limitations,...scores.camarade.limitations,"MEASURABLE_EVIDENCE_UNAVAILABLE"],simulationLabel:"simulation"});const comparison=JSON.parse(await readFile(join(root,"scoring","comparison.json"),"utf8"));expect(comparison.limitations).toEqual(expect.arrayContaining(["TELEMETRY_UNAVAILABLE","AGENT_AUTHENTICATION_REQUIRED"]));}finally{await rm(root,{recursive:true,force:true});}});
 });

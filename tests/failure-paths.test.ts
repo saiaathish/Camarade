@@ -189,7 +189,8 @@ describe("S2-10 public failure paths", () => {
     ], capture.io);
     expect(exitCode).toBe(1);
     expect(capture.stdout).toEqual([]);
-    expect(capture.stderr.join("")).toContain(`Task file cannot be read: ${missingTaskFile}`);
+    expect(capture.stderr.join("")).toContain("Task file cannot be read: <redacted-path>");
+    expect(capture.stderr.join("")).not.toContain(missingTaskFile);
     expect(capture.stderr.join("")).not.toContain("    at ");
   });
 
@@ -375,7 +376,7 @@ describe("S2-10 public failure paths", () => {
       await readFile(join(result.artifacts.camarade.logsDirectory, "agent.stdout.log"), "utf8")
     );
     expect(camaradeEvidence.baselineSiblingExists).toBe(false);
-    expect(camaradeEvidence.contextPath).toBe(`${result.manifests.camarade.worktree}/AGENTS.md`);
+    expect(camaradeEvidence.contextPath).toBe(join(result.manifests.camarade.worktree, "AGENTS.md"));
     expect(await readFile(result.artifacts.generatedAgentsPath, "utf8")).not.toContain(paths.repositoryPath);
     expect(git(paths.repositoryPath, "status", "--porcelain=v1", "--untracked-files=all")).toBe("");
   });

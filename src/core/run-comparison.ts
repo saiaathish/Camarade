@@ -36,6 +36,7 @@ import type {
   RunManifest,
   RunMetrics
 } from "./types.js";
+import { validationCommandLabel, type ValidationCommand } from "./types.js";
 import { timeoutSecondsToMilliseconds } from "./process-timeout.js";
 import {
   cleanupWorktrees,
@@ -574,7 +575,7 @@ async function executeCondition(
   task: string,
   layout: ConditionRunLayout,
   contextPackPath: string | undefined,
-  validationCommands: readonly string[],
+  validationCommands: readonly ValidationCommand[],
   timeoutSeconds: number,
   verifyContext: () => Promise<void>
 ): Promise<ConditionExecution> {
@@ -658,7 +659,7 @@ function buildManifest(
   startingCommit: string,
   timeoutSeconds: number,
   contextSourceHashes: Record<string, EvidenceValue<string>>,
-  validationCommands: readonly string[],
+  validationCommands: readonly ValidationCommand[],
   execution: ConditionExecution
 ): RunManifest {
   const identity = manifestEvidence(options.adapter);
@@ -706,7 +707,7 @@ function buildManifest(
 async function createUnavailableExecution(
   layout: ConditionRunLayout,
   failure: PipelineFailure,
-  validationCommands: readonly string[]
+  validationCommands: readonly ValidationCommand[]
 ): Promise<ConditionExecution> {
   const startedAt = new Date().toISOString();
   const stdoutPath = resolve(layout.logsDirectory, "agent.stdout.log");
@@ -741,7 +742,8 @@ async function createUnavailableExecution(
       );
     }
     return {
-      command,
+      command: validationCommandLabel(command),
+      ...(typeof command === "string" ? {} : { configuration: command }),
       exitCode: null,
       durationMs: 0,
       stdoutPath: validationStdoutPath,
@@ -797,7 +799,7 @@ async function ensureFailureManifests(options: {
   startingCommit: string;
   timeoutSeconds: number;
   hashes?: Record<string, string>;
-  validationCommands: readonly string[];
+  validationCommands: readonly ValidationCommand[];
   baselineExecution?: ConditionExecution;
   camaradeExecution?: ConditionExecution;
   failure: PipelineFailure;
@@ -924,7 +926,7 @@ export async function runComparison(options: RunComparisonOptions): Promise<RunC
   let baselineManifest: RunManifest | undefined;
   let camaradeManifest: RunManifest | undefined;
   let timeoutSeconds: number | undefined;
-  let validationCommands: string[] | undefined;
+  let validationCommands: ValidationCommand[] | undefined;
   let hashes: Record<string, string> | undefined;
   let preparedContext: PreparedContext | undefined;
   let archivedContext: ArchivedContextEntry[] | undefined;
@@ -982,7 +984,7 @@ export async function runComparison(options: RunComparisonOptions): Promise<RunC
       task: normalized.task,
       repositoryPath,
       repositorySummary: `Repository ${basename(repositoryPath)} at commit ${startingCommit}.`,
-      validationCommands: config.validationCommands
+      validationCommands: config.validationCommands.map(validationCommandLabel)
     });
 
     stage = "worktree-creation";

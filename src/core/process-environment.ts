@@ -20,9 +20,25 @@ export function createChildEnvironment(
   additions: Readonly<Record<string, string>> = {}
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {};
+  const pathValue = process.env.PATH ?? process.env.Path;
   for (const key of PASSTHROUGH_ENVIRONMENT_KEYS) {
+    if (key === "PATH" || key === "Path") continue;
     const value = process.env[key];
     if (value !== undefined) environment[key] = value;
   }
+  if (pathValue !== undefined) {
+    environment[process.platform === "win32" ? "Path" : "PATH"] = pathValue;
+  }
   return { ...environment, ...additions };
+}
+
+export function createValidationEnvironment(
+  base: NodeJS.ProcessEnv = createChildEnvironment(),
+): NodeJS.ProcessEnv {
+  return {
+    ...base,
+    NO_UPDATE_NOTIFIER: "1",
+    NPM_CONFIG_UPDATE_NOTIFIER: "false",
+    npm_config_update_notifier: "false",
+  };
 }

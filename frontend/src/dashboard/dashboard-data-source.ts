@@ -11,8 +11,8 @@ export interface DashboardDataSource {
 }
 
 export class DashboardApiError extends Error {
-  constructor(readonly reason: "unavailable" | "invalid") {
-    super(reason === "invalid" ? "The local dashboard returned an invalid response." : "The local dashboard service is unavailable.");
+  constructor(readonly reason: "unavailable" | "invalid" | "unsupported") {
+    super(reason === "unsupported" ? "The persisted run uses an unsupported artifact version." : reason === "invalid" ? "The local dashboard returned an invalid response." : "The local dashboard service is unavailable.");
     this.name = "DashboardApiError";
   }
 }
@@ -39,9 +39,14 @@ export class LocalApiDashboardDataSource implements DashboardDataSource {
       const response = await fetch(path, { cache: "no-store" });
       if (response.status === 404) throw new DashboardRunNotFoundError(path.split("/").pop() ?? "");
       const type = response.headers.get("content-type") ?? "";
-      if (!response.ok || !type.toLowerCase().includes("application/json")) throw new DashboardApiError("unavailable");
+      if (!type.toLowerCase().includes("application/json")) throw new DashboardApiError("unavailable");
       let body: unknown;
       try { body = await response.json(); } catch { throw new DashboardApiError("invalid"); }
+      if (!response.ok) {
+        const code = isRecord(body) && isRecord(body.error) ? body.error.code : undefined;
+        if (code === "UNSUPPORTED_ARTIFACT_VERSION") throw new DashboardApiError("unsupported");
+        throw new DashboardApiError(response.status === 413 || response.status === 422 ? "invalid" : "unavailable");
+      }
       return body;
     } catch (error) {
       if (error instanceof DashboardRunNotFoundError || error instanceof DashboardApiError) throw error;

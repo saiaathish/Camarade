@@ -21,6 +21,8 @@ import { evaluateTask } from "./evaluate/evaluate-task.js";
 import { listRuns, showRun } from "./evaluate/run-store.js";
 import { renderDashboardRun } from "./evaluate/render-dashboard-run.js";
 import { runDashboard, validateDashboardPort } from "./dashboard-server/dashboard-command.js";
+import { sanitizePublicErrorMessage } from "./artifacts/public-evidence-policy.js";
+import { isPortableAbsolutePath } from "./core/path-portability.js";
 
 const AVAILABLE_ADAPTERS = ["fixture", "command"] as const;
 const SINGLE_VALUE_FLAGS = new Set([
@@ -45,6 +47,7 @@ export const CLI_USAGE = [
   "  camarade evaluate --repo PATH (--task TEXT | --task-file FILE) [--controller-root PATH] [--confirm-execution] [--json]",
   "  camarade runs [--controller-root PATH] [--json]",
   "  camarade show COMPARISON-ID [--controller-root PATH] [--json]",
+  "  camarade dashboard [COMPARISON-ID] [--controller-root PATH] [--port PORT] [--no-open]",
   "",
   "The command adapter starts the explicitly configured executable directly without a shell.",
   "Repeat --command-arg once for each literal argument, in execution order."
@@ -231,7 +234,7 @@ export function parseCliArgs(argv: readonly string[], cwd = process.cwd()): Pars
   const resolvedCommandExecutable = commandExecutable === undefined
     ? undefined
     : commandExecutable.includes("/") || commandExecutable.includes("\\")
-      ? resolve(cwd, commandExecutable)
+      ? isPortableAbsolutePath(commandExecutable) ? commandExecutable : resolve(cwd, commandExecutable)
       : commandExecutable;
 
   return {
@@ -519,21 +522,21 @@ export async function runCli(
         cause.code,
         "",
         "Evidence:",
-        cause.evidencePath ?? "Unavailable",
+        cause.evidencePath === undefined ? "Unavailable" : "Recorded in private controller artifacts.",
         ""
       ].join("\n"));
       return 1;
     }
     if (cause instanceof RunComparisonError) {
       io.stderr.write([
-        `Problem: ${cause.message}`,
+        `Problem: ${sanitizePublicErrorMessage(cause.message)}`,
         `Failed stage: ${cause.stage}`,
-        ...(cause.evidencePath === undefined ? [] : [`Evidence path: ${cause.evidencePath}`]),
+        ...(cause.evidencePath === undefined ? [] : ["Evidence: recorded in private controller artifacts."]),
         ""
       ].join("\n"));
       return 1;
     }
-    const message = cause instanceof Error ? cause.message : String(cause);
+    const message = sanitizePublicErrorMessage(cause instanceof Error ? cause.message : String(cause));
     io.stderr.write(cause instanceof CliUsageError ? `Problem: ${message}\n${CLI_USAGE}\n` : `Problem: ${message}\n`);
     return 1;
   }

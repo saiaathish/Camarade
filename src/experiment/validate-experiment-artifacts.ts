@@ -8,6 +8,7 @@ import {
   type EvaluationSealReference,
 } from "../evaluation/evaluation-seal-types.js";
 import { validateEvaluationExecutionArtifacts } from "../evaluation/validate-evaluation-execution-artifacts.js";
+import { assertSupportedArtifactVersion } from "../artifacts/versioning.js";
 import { isPathWithin } from "./git.js";
 import { FairExperimentRunError } from "./experiment-errors.js";
 import type {
@@ -464,6 +465,7 @@ async function validateIndex(
   worktrees: readonly string[],
   experimentId: string,
 ): Promise<void> {
+  assertSupportedArtifactVersion("experiment-artifact-index", index);
   if (index.experimentId !== experimentId || !Array.isArray(index.entries)) fail("Artifact index identity or entries are invalid.");
   const sorted = [...index.entries].sort((left, right) => left.relativePath.localeCompare(right.relativePath));
   expectEqual(sorted, index.entries, "artifact index ordering");
@@ -496,6 +498,11 @@ function validatePathIdentity(value: unknown, expected: string, label: string): 
   if (typeof value !== "string" || !isAbsolute(value) || resolve(value) !== resolve(expected)) fail(`${label} is not canonical.`, { label, value, expected });
 }
 
+function validatePublicReference(value: unknown, expected: string, label: string): void {
+  const expectedName = expected.split(/[\\/]/u).at(-1);
+  if (typeof value !== "string" || value !== expectedName) fail(`${label} is not a canonical public reference.`, { label, value, expected: expectedName });
+}
+
 async function validateExecutionTiming(result: FairExperimentResult, root: string, worktrees: readonly string[]): Promise<void> {
   const executionResults = result.manifest.conditionExecutionResults;
   const validationResults = result.manifest.conditionValidationResults;
@@ -523,7 +530,8 @@ async function validateExecutionTiming(result: FairExperimentResult, root: strin
     let timedOut = false;
     let passed = true;
     for (const command of value.commands) {
-      if (command.command !== result.specification.validationCommands[command.sequence - 1]) fail(`${value.conditionId} validation command mismatch.`);
+      const recordedConfiguration = command.configuration ?? command.command;
+      if (canonicalJson(recordedConfiguration) !== canonicalJson(result.specification.validationCommands[command.sequence - 1])) fail(`${value.conditionId} validation command mismatch.`);
       validateDuration(command.startedAt, command.completedAt, command.durationMs, `${value.conditionId} validation ${command.sequence}`);
       const started = Date.parse(command.startedAt);
       if (started < previousCompleted) fail(`${value.conditionId} validation commands overlap or are out of order.`);
@@ -578,6 +586,7 @@ async function validatePreparedPaths(result: FairExperimentResult, root: string,
 }
 
 export async function validateExperimentArtifacts(result: FairExperimentResult): Promise<void> {
+  assertSupportedArtifactVersion("stage-5-experiment", result);
   await validateEvaluationExecutionArtifacts(result);
   const prepared = result.prepared;
   const directory = prepared?.layout.experimentDirectory;
@@ -630,9 +639,9 @@ export async function validateExperimentArtifacts(result: FairExperimentResult):
   validatePathIdentity(result.manifestPath, paths.manifest, "result.manifestPath");
   validatePathIdentity(result.summaryPath, paths.summary, "result.summaryPath");
   validatePathIdentity(result.resultPath, paths.result, "result.resultPath");
-  validatePathIdentity(result.summary.artifactIndexPath, paths.index, "summary.artifactIndexPath");
-  validatePathIdentity(result.summary.manifestPath, paths.manifest, "summary.manifestPath");
-  validatePathIdentity(result.summary.resultPath, paths.result, "summary.resultPath");
+  validatePublicReference(result.summary.artifactIndexPath, paths.index, "summary.artifactIndexPath");
+  validatePublicReference(result.summary.manifestPath, paths.manifest, "summary.manifestPath");
+  validatePublicReference(result.summary.resultPath, paths.result, "summary.resultPath");
 
   if (result.manifest.experimentId !== result.specification.experimentId || result.manifest.specificationId !== result.specification.specificationId || result.manifest.specificationHash !== result.specification.specificationHash) fail("Manifest specification cross-reference mismatch.");
   if (result.summary.experimentId !== result.specification.experimentId || result.summary.status !== result.manifest.status) fail("Summary experiment cross-reference mismatch.");
