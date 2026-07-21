@@ -56,6 +56,7 @@ async function fixture(options: { evaluation?: boolean; hiddenAssets?: string[] 
   execFileSync("git", ["init", "-q"], { cwd: repository });
   execFileSync("git", ["config", "user.name", "Camarade Test"], { cwd: repository });
   execFileSync("git", ["config", "user.email", "camarade-test@example.invalid"], { cwd: repository });
+  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: repository });
   execFileSync("git", ["add", "-A"], { cwd: repository });
   execFileSync("git", ["commit", "-qm", "fixture baseline"], { cwd: repository });
   let definitionPath: string | undefined;

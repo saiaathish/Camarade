@@ -37,6 +37,7 @@ async function createGitWorktrees(root: string): Promise<{
   git(repositoryPath, "init");
   git(repositoryPath, "config", "user.email", "context-safety@example.com");
   git(repositoryPath, "config", "user.name", "Context Safety Test");
+  git(repositoryPath, "config", "core.autocrlf", "false");
   git(repositoryPath, "add", ".");
   git(repositoryPath, "commit", "-m", "fixture");
   const startingCommit = git(repositoryPath, "rev-parse", "HEAD");

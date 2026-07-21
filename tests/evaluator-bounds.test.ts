@@ -35,12 +35,19 @@ ${behavior}
   }
 
   const previousPath = process.env.PATH;
-  process.env.PATH = `${binPath}${process.platform === "win32" ? ";" : ":"}${previousPath ?? ""}`;
+  const previousWindowsPath = process.env.Path;
+  const nextPath = `${binPath}${process.platform === "win32" ? ";" : ":"}${previousPath ?? previousWindowsPath ?? ""}`;
+  process.env.PATH = nextPath;
+  if (process.platform === "win32") process.env.Path = nextPath;
   try {
     await callback(repositoryPath);
   } finally {
     if (previousPath === undefined) delete process.env.PATH;
     else process.env.PATH = previousPath;
+    if (process.platform === "win32") {
+      if (previousWindowsPath === undefined) delete process.env.Path;
+      else process.env.Path = previousWindowsPath;
+    }
   }
 }
 
