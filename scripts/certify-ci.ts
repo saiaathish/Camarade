@@ -11,6 +11,7 @@ function fullPhases(root: string, environment: NodeJS.ProcessEnv): Phase[] {
   return [
     npm("root-typecheck", "typecheck"),
     npm("frontend-typecheck", "frontend:typecheck"),
+    npm("build-stage8", "build:stage8"),
     npm("full-tests", "test"),
     npm("stage3-certification", "certify:stage3"),
     npm("stage4-mcp", "verify:mcp:stage4"),

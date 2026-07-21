@@ -28,7 +28,7 @@ describe("S8-02 package", () => {
       tarball = (await npm(["pack", "--silent"])).stdout.trim().split(/\r?\n/u).at(-1) ?? "";
       expect(tarball).toMatch(/\.tgz$/u);
       const installRoot = join(temporaryRoot, "installed");
-      await requirePortableSuccess({ ...npmInvocation(["install", "--offline", "--ignore-scripts", "--no-save", "--prefix", installRoot, join(root, tarball)]), cwd: root, timeoutMs: 120_000 });
+      await requirePortableSuccess({ ...npmInvocation(["install", "--offline=false", "--prefer-online", "--ignore-scripts", "--no-save", "--prefix", installRoot, join(root, tarball)]), cwd: root, timeoutMs: 120_000 });
       const controller = join(temporaryRoot, "controller");
       const run = join(controller, ".camarade", "runs", "win-001");
       await mkdir(run, { recursive: true });

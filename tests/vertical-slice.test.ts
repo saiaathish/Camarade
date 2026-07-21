@@ -324,13 +324,13 @@ describe("S2-10 public vertical slice", () => {
     }
 
     const firstReplacements = new Map([
-      [first.result.artifacts.runDirectory.split("/.camarade/runs/")[0] ?? "", "<controller-root>"],
+      [first.result.artifacts.runDirectory.split(/[\\/]\.camarade[\\/]runs[\\/]/u)[0] ?? "", "<controller-root>"],
       [first.result.repositoryPath, "<repository>"],
       [first.result.comparisonId, "<comparison-id>"],
       [root, "<temporary-root>"]
     ]);
     const secondReplacements = new Map([
-      [second.result.artifacts.runDirectory.split("/.camarade/runs/")[0] ?? "", "<controller-root>"],
+      [second.result.artifacts.runDirectory.split(/[\\/]\.camarade[\\/]runs[\\/]/u)[0] ?? "", "<controller-root>"],
       [second.result.repositoryPath, "<repository>"],
       [second.result.comparisonId, "<comparison-id>"],
       [root, "<temporary-root>"]

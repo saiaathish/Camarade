@@ -20,7 +20,7 @@ describe("S8-04 package", () => {
       tgz=(await npm(["pack","--silent"])).stdout.trim().split(/\r?\n/u).at(-1)??""; expect(tgz).toMatch(/\.tgz$/);
       const controller=join(temp,"controller"); await mkdir(join(controller,".camarade/runs/win-001"),{recursive:true});
       await writeFile(join(controller,".camarade/runs/win-001/dashboard-run.json"),await readFile(join(root,"fixtures/stage-8/dashboard/valid-camarade-win.json")));
-      const port=await freePort(); const packagePath=join(root,tgz); await npm(["install","--offline","--ignore-scripts","--no-save","--prefix",temp,packagePath],temp); const logChunks:string[]=[];
+      const port=await freePort(); const packagePath=join(root,tgz); await npm(["install","--offline=false","--prefer-online","--ignore-scripts","--no-save","--prefix",temp,packagePath],temp); const logChunks:string[]=[];
       const invocation=await installedCamaradeInvocation(temp,["dashboard","win-001","--controller-root",controller,"--port",String(port),"--no-open"]);
       const installedEntry=resolve(invocation.args[0]??"");
       await access(installedEntry);

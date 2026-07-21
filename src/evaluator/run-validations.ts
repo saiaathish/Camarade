@@ -102,7 +102,7 @@ async function runValidation(
 
   clearTimeout(timeoutTimer);
   if (forceKillTimer !== undefined) clearTimeout(forceKillTimer);
-  attemptTermination(child, "SIGKILL");
+  if (child.exitCode === null && child.signalCode === null) attemptTermination(child, "SIGKILL");
   await Promise.all([stdout.close(), stderr.close()]);
 
   if (spawnError !== undefined) {

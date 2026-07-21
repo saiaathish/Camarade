@@ -29,8 +29,8 @@ async function heroFixture(): Promise<string> {
 
 function fixtureValidation(worktreePath: string): number | null {
   return spawnSync(
-    process.execPath,
-    ["--experimental-strip-types", "--test", "tests/public-search.test.ts"],
+    process.platform === "win32" ? "npm.cmd" : "npm",
+    ["test"],
     { cwd: worktreePath, encoding: "utf8" }
   ).status;
 }

@@ -13,7 +13,7 @@ afterEach(async () => { const { rm } = await import("node:fs/promises"); for (co
 async function written(status: "valid" | "limited" | "invalid" = "valid") { const f = await fixture(status); await writeExplanationArtifacts(f.root, "cmp-1", status, f.result); return f; }
 
 describe("S7-03 explanation artifacts", () => {
-  it("[R01] canonical explanation directory", async () => { const f = await written(); expect(await readdir(join(f.root, "explanation"))).toEqual(["REPORT.md", "evidence-index.json", "explanation-summary.json", "harmful-instructions.json", "helped-instructions.json", "instruction-impacts.json", "unresolved-instructions.json"]); });
+  it("[R01] canonical explanation directory", async () => { const f = await written(); expect((await readdir(join(f.root, "explanation"))).sort()).toEqual(["REPORT.md", "evidence-index.json", "explanation-summary.json", "harmful-instructions.json", "helped-instructions.json", "instruction-impacts.json", "unresolved-instructions.json"]); });
   it("[R02] complete valid artifact set", async () => { const f = await written(); const a = await validateExplanationArtifacts(f.root, "cmp-1"); expect(a.index.entries).toHaveLength(6); expect(a.report).toContain("## Experiment"); });
   it("[R03] canonical JSON ordering", async () => { const f = await written(); const b = await readFile(join(f.root, "explanation/instruction-impacts.json"), "utf8"); expect(b).toBe(canonicalJson(JSON.parse(b))); });
   it("[R04] deterministic Markdown report", async () => { const f = await written(); const a = await validateExplanationArtifacts(f.root, "cmp-1"); expect(a.report).toBe(renderExplanationReport(a.summary)); });
