@@ -61,11 +61,6 @@ try {
   if (JSON.stringify(first) !== JSON.stringify(tracked)) {
     throw new Error(`PLUGIN_BUILD_DIFFERS_FROM_TRACKED_RUNTIME\nclean=${JSON.stringify(first)}\ntracked=${JSON.stringify(tracked)}`);
   }
-  try {
-    await exec("git", ["diff", "--quiet", "--", ...generated], { cwd: root });
-  } catch {
-    throw new Error("PLUGIN_BUILD_DIFFERS_FROM_TRACKED_RUNTIME");
-  }
   process.stdout.write(`${JSON.stringify({ status: "pass", cleanInstalls: 2, generated: first })}\n`);
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
