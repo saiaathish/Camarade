@@ -6,7 +6,7 @@ Fixture adapter results are simulated and are not benchmark evidence.
 
 ## Installation
 
-Requirements: Node.js, npm, and Git.
+Requirements: Node.js 20 or newer and npm. Git is required for reproducible experiment execution; repository intelligence can run without history in its documented no-Git mode.
 
 From a Camarade checkout:
 
@@ -50,6 +50,8 @@ MCP clients normally launch the local stdio server. The primary tool is `camarad
 | Verify plugin | `npm run verify:plugin` | Rebuilds the plugin runtime and verifies the manifest, skill, assets, and MCP startup. |
 | Typecheck | `npm run typecheck` | Checks TypeScript without emitting files. |
 | Test | `npm test` | Runs the Vitest suite once. |
+| CI certification | `npm run certify:ci` | Runs the portable root/frontend, Stage 3–8, MCP, plugin, package, coverage, test-quality, and public-evidence gates. |
+| Package certification | `npm run certify:package` | Builds, packs, installs with a fresh npm cache in a clean prefix, and exercises the installed CLI, dashboard, and MCP server. |
 | Test watch | `npm run test:watch` | Runs Vitest in watch mode. |
 | CLI | `npm run camarade -- ...` | Runs `src/cli.ts`; implemented commands are `compile`, `inspect`, `evaluate`, `measure`, `explain`, `runs`, and `show`. |
 | Hero fixture | `npm run create:hero-fixture -- [destination]` | Creates a committed Git fixture at a new destination, or in a temporary directory when omitted. |

@@ -1,8 +1,8 @@
 import { lstat, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, posix, win32 } from "node:path";
 import { parse } from "yaml";
 import { RunConfigError } from "../core/errors.js";
-import type { LoadedRunConfig } from "../core/types.js";
+import type { LoadedRunConfig, StructuredValidationCommand, ValidationCommand } from "../core/types.js";
 import {
   DEFAULT_CONTEXT_BUDGET,
   type ContextBudgetConfig
@@ -20,6 +20,47 @@ function positiveInteger(value: unknown, field: string): number {
     throw new RunConfigError(`${field} must be a positive integer in camarade.run.yaml.`);
   }
   return value;
+}
+
+function validationWorkingDirectory(value: unknown, index: number): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.trim() === "" || value.includes("\0")) {
+    throw new RunConfigError(`validationCommands[${index}].workingDirectory must be a non-empty relative path in camarade.run.yaml.`);
+  }
+  const normalized = value.trim().replace(/\\/gu, "/");
+  if (isAbsolute(normalized) || win32.isAbsolute(value) || normalized.split("/").includes("..")) {
+    throw new RunConfigError(`validationCommands[${index}].workingDirectory must stay within the repository in camarade.run.yaml.`);
+  }
+  const canonical = posix.normalize(normalized).replace(/^\.\//u, "");
+  return canonical === "" ? "." : canonical;
+}
+
+function validationCommand(value: unknown, index: number): ValidationCommand {
+  if (typeof value === "string") {
+    if (value.trim() === "") throw new RunConfigError(`Validation command at index ${index} must be a non-empty string or command mapping in camarade.run.yaml.`);
+    return value.trim();
+  }
+  if (!isMapping(value) || hasUnknown(value, ["executable", "arguments", "workingDirectory", "timeoutSeconds"])) {
+    throw new RunConfigError(`Validation command at index ${index} must be a non-empty string or command mapping in camarade.run.yaml.`);
+  }
+  if (typeof value.executable !== "string" || value.executable.trim() === "" || value.executable.includes("\0")) {
+    throw new RunConfigError(`validationCommands[${index}].executable must be a non-empty string in camarade.run.yaml.`);
+  }
+  const rawArguments = value.arguments ?? [];
+  if (!Array.isArray(rawArguments) || rawArguments.some((argument) => typeof argument !== "string" || argument.includes("\0"))) {
+    throw new RunConfigError(`validationCommands[${index}].arguments must be an array of literal strings in camarade.run.yaml.`);
+  }
+  const timeout = value.timeoutSeconds;
+  if (timeout !== undefined && (typeof timeout !== "number" || !Number.isSafeInteger(timeout) || timeout <= 0)) {
+    throw new RunConfigError(`validationCommands[${index}].timeoutSeconds must be a positive safe integer in camarade.run.yaml.`);
+  }
+  const command: StructuredValidationCommand = {
+    executable: value.executable.trim(),
+    ...(rawArguments.length === 0 ? {} : { arguments: [...rawArguments] as string[] }),
+    ...(value.workingDirectory === undefined ? {} : { workingDirectory: validationWorkingDirectory(value.workingDirectory, index) }),
+    ...(timeout === undefined ? {} : { timeoutSeconds: timeout })
+  };
+  return command;
 }
 
 function contextBudget(config: Record<string, unknown>): ContextBudgetConfig | undefined {
@@ -73,8 +114,9 @@ export async function loadRunConfig(repositoryPath: string): Promise<LoadedRunCo
   const config = parsed as Record<string, unknown>;
   const rawCommands = config.validationCommands;
   if (rawCommands !== undefined && !Array.isArray(rawCommands)) throw new RunConfigError("validationCommands must be an array in camarade.run.yaml.");
-  const commands = (rawCommands ?? []).map((command, index) => { if (typeof command !== "string" || command.trim() === "") throw new RunConfigError(`Validation command at index ${index} must be a non-empty string in camarade.run.yaml.`); return command.trim(); });
-  if (new Set(commands).size !== commands.length) throw new RunConfigError("validationCommands contains duplicate commands after trimming in camarade.run.yaml.");
+  const commands = (rawCommands ?? []).map(validationCommand);
+  const commandKeys = commands.map((command) => JSON.stringify(command));
+  if (new Set(commandKeys).size !== commands.length) throw new RunConfigError("validationCommands contains duplicate commands after normalization in camarade.run.yaml.");
   const timeout = config.timeoutSeconds ?? DEFAULT_TIMEOUT;
   if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout <= 0) throw new RunConfigError("timeoutSeconds must be a positive integer in camarade.run.yaml.");
   const compilerBudget = contextBudget(config);

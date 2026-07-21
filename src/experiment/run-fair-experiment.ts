@@ -29,6 +29,7 @@ import type {
   ExperimentLifecycleStatus,
   ExperimentManifest,
   ExperimentSummary,
+  ConditionExecutionResult,
 } from "./experiment-types.js";
 import type { EvaluationSealReference } from "../evaluation/evaluation-seal-types.js";
 import { executeExperimentEvaluation } from "../evaluation/execute-experiment-evaluation.js";
@@ -44,6 +45,38 @@ export interface RunFairExperimentOptions {
   afterValidationsBeforeSourceVerification?: () => Promise<void>;
   now?: () => Date;
 }
+
+export function scoringEvidenceForCondition(
+  condition: Pick<
+    ConditionExecutionResult,
+    | "actualTokenUsageAvailable"
+    | "changedFiles"
+    | "degradations"
+    | "durationMs"
+    | "inputTokens"
+    | "outputTokens"
+  >,
+): ConditionEvidence {
+  return {
+    correctness: [],
+    requirements: [],
+    rules: [],
+    changes: {
+      expectedPaths: condition.changedFiles,
+      unnecessaryPaths: [],
+      protectedPathViolations: [],
+      missingRequiredChangedPaths: [],
+    },
+    totalTokens: condition.actualTokenUsageAvailable
+      ? (condition.inputTokens ?? 0) + (condition.outputTokens ?? 0)
+      : undefined,
+    agentDurationMs: condition.durationMs,
+    degradationCodes: [
+      ...new Set((condition.degradations ?? []).map((degradation) => degradation.code)),
+    ].sort(),
+  };
+}
+
 function envEvidence(env: NodeJS.ProcessEnv): ValidationEnvironmentEvidence {
   const keys = Object.keys(env)
     .filter((k) => !new Set(["PWD", "OLDPWD", "SHLVL", "_"]).has(k))
@@ -216,8 +249,10 @@ export async function runFairExperiment(
     prepared,
     manifestPath: resolve(prepared.layout.experimentDirectory, "experiment-manifest.json"),
   } as FairExperimentResult);
-  const scoringEvidence = (c: typeof executed.baseline.result): ConditionEvidence => ({ correctness: [], requirements: [], rules: [], changes: { expectedPaths: c.changedFiles, unnecessaryPaths: [], protectedPathViolations: [], missingRequiredChangedPaths: [] }, totalTokens: c.actualTokenUsageAvailable ? (c.inputTokens ?? 0) + (c.outputTokens ?? 0) : undefined, agentDurationMs: c.durationMs });
-  const scores = scorePair(scoringEvidence(executed.baseline.result), scoringEvidence(executed.camarade.result));
+  const scores = scorePair(
+    scoringEvidenceForCondition(executed.baseline.result),
+    scoringEvidenceForCondition(executed.camarade.result),
+  );
   const scoringStatus = resolveStatus("limited", scores);
   const override = resolveMaterialOverride({ condition: "baseline" }, { condition: "camarade" }, scoringStatus);
   const resolved = resolveOutcomeWithOverride(scores.baseline, scores.camarade, scoringStatus, override);
@@ -279,15 +314,9 @@ export async function runFairExperiment(
     baselineValidationStatus: baseline.status,
     camaradeValidationStatus: camarade.status,
     cleanupSucceeded: cleanup.succeeded,
-    artifactIndexPath: manifest.artifactIndexPath,
-    manifestPath: resolve(
-      prepared.layout.experimentDirectory,
-      "experiment-manifest.json",
-    ),
-    resultPath: resolve(
-      prepared.layout.experimentDirectory,
-      "experiment-result.json",
-    ),
+    artifactIndexPath: "artifact-index.json",
+    manifestPath: "experiment-manifest.json",
+    resultPath: "experiment-result.json",
     artifacts: [],
     ...summarySeal(evaluationSeal),
     evaluationExecutionStatus: evaluationExecution?.status,

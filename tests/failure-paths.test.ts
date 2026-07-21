@@ -189,7 +189,8 @@ describe("S2-10 public failure paths", () => {
     ], capture.io);
     expect(exitCode).toBe(1);
     expect(capture.stdout).toEqual([]);
-    expect(capture.stderr.join("")).toContain(`Task file cannot be read: ${missingTaskFile}`);
+    expect(capture.stderr.join("")).toContain("Task file cannot be read: <redacted-path>");
+    expect(capture.stderr.join("")).not.toContain(missingTaskFile);
     expect(capture.stderr.join("")).not.toContain("    at ");
   });
 

@@ -19,6 +19,15 @@ describe("Stage 4 task normalization", () => {
     });
   });
 
+  it("normalizes the exact package-certification task", () => {
+    const task = "Validate the installed Camarade package workflow.";
+    const result = normalizeTask(task);
+
+    expect(result.originalTask).toBe(task);
+    expect(result.normalizedTask).toBe(task);
+    expect(result.explicitRequirements).toEqual([task]);
+  });
+
   it.each([
     ["Fix the profile parser.", "fix"],
     ["Refactor the profile parser.", "refactor"],

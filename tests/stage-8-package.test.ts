@@ -1,12 +1,54 @@
-import { describe, expect, it } from "vitest";
-import { execFile as execFileCallback } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdtemp, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const execFile=promisify(execFileCallback);
-const pkg=async()=>JSON.parse(await readFile("package.json","utf8"));
-describe("S8-02 package",()=>{
-it("[S8C27] compiled bin executes without tsx",async()=>{await execFile("npm",["run","build"],{cwd:process.cwd(),env:{...process.env}});const r=await execFile(process.execPath,["dist/src/bin/camarade.js","--help"],{cwd:process.cwd(),env:{...process.env,PATH:"/usr/bin:/bin"}});expect(r.stdout).toMatch(/Usage: camarade/);expect(r.stderr).toBe("");},30000);
-it("[S8C28] npm tarball help, runs, and show smoke tests",async()=>{const root=await mkdtemp(join(tmpdir(),"camarade-tarball-"));let tarball:string|undefined;try{await execFile("npm",["run","build"],{cwd:process.cwd()});const packed=await execFile("npm",["pack","--silent"],{cwd:process.cwd()});tarball=packed.stdout.trim().split(/\s+/).pop();expect(tarball).toMatch(/\.tgz$/);const installRoot=join(root,"installed");await execFile("npm",["install","--offline","--ignore-scripts","--no-save","--prefix",installRoot,join(process.cwd(),tarball!)],{cwd:process.cwd(),timeout:30000});const bin=join(installRoot,"node_modules",".bin","camarade");const controller=join(root,"controller");const run=join(controller,".camarade","runs","win-001");await mkdir(run,{recursive:true});const fixture=await readFile(join(process.cwd(),"fixtures/stage-8/dashboard/valid-camarade-win.json"),"utf8");await writeFile(join(run,"dashboard-run.json"),fixture);const env={...process.env,CI:"1"};const runResult=await execFile(bin,["runs","--controller-root",controller,"--json"],{cwd:installRoot,env,timeout:20000});const showResult=await execFile(bin,["show","win-001","--controller-root",controller,"--json"],{cwd:installRoot,env,timeout:20000});const help=await execFile(bin,["--help"],{cwd:installRoot,env,timeout:20000});expect(help.stdout).toMatch(/Usage: camarade/);const badShow=await execFile(bin,["show","../escape","--controller-root",controller],{cwd:installRoot,env,timeout:20000}).then(()=>{throw new Error("unsafe show succeeded")},(error:{code?:number;stderr?:string})=>error);expect(badShow.code).toBe(1);expect(String(badShow.stderr)).toContain("Problem: Unsafe comparison ID.");expect(String(badShow.stderr)).not.toMatch(/    at |\/Users\//);expect(JSON.parse(runResult.stdout)[0].comparisonId).toBe("win-001");const shown=JSON.parse(showResult.stdout);expect(shown.comparisonId).toBe("win-001");for(const output of [runResult.stdout,showResult.stdout])expect(output).not.toMatch(/\/Users\/|\/private\/|system prompt|secret/i)}finally{if(tarball)await unlink(join(process.cwd(),tarball)).catch(()=>{});await rm(root,{recursive:true,force:true})}},30000);
+import { describe, expect, it } from "vitest";
+import {
+  installedCamaradeInvocation,
+  npmInvocation,
+  requirePortableSuccess,
+  runPortableCommand,
+} from "../scripts/lib/portable-command.js";
+
+const root = process.cwd();
+const npm = (args: readonly string[], timeoutMs = 120_000) => requirePortableSuccess({ ...npmInvocation(args), cwd: root, timeoutMs });
+
+describe("S8-02 package", () => {
+  it("[S8C27] compiled bin executes without tsx", async () => {
+    await npm(["run", "build"]);
+    const result = await requirePortableSuccess({ command: process.execPath, args: [join(root, "dist/src/bin/camarade.js"), "--help"], cwd: root, env: { ...process.env, PATH: "" }, timeoutMs: 20_000 });
+    expect(result.stdout).toMatch(/Usage: camarade/u);
+    expect(result.stderr).toBe("");
+  }, 120_000);
+
+  it("[S8C28] npm tarball help, runs, and show smoke tests", async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "camarade-tarball-"));
+    let tarball = "";
+    try {
+      await npm(["run", "build"]);
+      tarball = (await npm(["pack", "--silent"])).stdout.trim().split(/\r?\n/u).at(-1) ?? "";
+      expect(tarball).toMatch(/\.tgz$/u);
+      const installRoot = join(temporaryRoot, "installed");
+      await requirePortableSuccess({ ...npmInvocation(["install", "--offline", "--ignore-scripts", "--no-save", "--prefix", installRoot, join(root, tarball)]), cwd: root, timeoutMs: 120_000 });
+      const controller = join(temporaryRoot, "controller");
+      const run = join(controller, ".camarade", "runs", "win-001");
+      await mkdir(run, { recursive: true });
+      await writeFile(join(run, "dashboard-run.json"), await readFile(join(root, "fixtures/stage-8/dashboard/valid-camarade-win.json")));
+      const invoke = async (args: readonly string[]) => await installedCamaradeInvocation(installRoot, args);
+      const environment = { ...process.env, CI: "1" };
+      const runResult = await requirePortableSuccess({ ...await invoke(["runs", "--controller-root", controller, "--json"]), cwd: installRoot, env: environment, timeoutMs: 20_000 });
+      const showResult = await requirePortableSuccess({ ...await invoke(["show", "win-001", "--controller-root", controller, "--json"]), cwd: installRoot, env: environment, timeoutMs: 20_000 });
+      const help = await requirePortableSuccess({ ...await invoke(["--help"]), cwd: installRoot, env: environment, timeoutMs: 20_000 });
+      expect(help.stdout).toMatch(/Usage: camarade/u);
+      const badShow = await runPortableCommand({ ...await invoke(["show", "../escape", "--controller-root", controller]), cwd: installRoot, env: environment, timeoutMs: 20_000 });
+      expect(badShow.exitCode).toBe(1);
+      expect(badShow.stderr).toContain("Problem: Unsafe comparison ID.");
+      expect(badShow.stderr).not.toMatch(/    at |\/Users\/|[A-Za-z]:\\/u);
+      expect(JSON.parse(runResult.stdout)[0].comparisonId).toBe("win-001");
+      expect(JSON.parse(showResult.stdout).comparisonId).toBe("win-001");
+      for (const output of [runResult.stdout, showResult.stdout]) expect(output).not.toMatch(/\/Users\/|\/private\/|[A-Za-z]:\\|system prompt|secret/iu);
+    } finally {
+      if (tarball) await rm(join(root, tarball), { force: true });
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }, 180_000);
 });

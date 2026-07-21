@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { cp, mkdtemp, readFile, readdir, stat } from "node:fs/promises";
+import { afterEach, describe, expect, it } from "vitest";
+import { cp, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
@@ -10,7 +10,9 @@ const cli = path.resolve("src/cli.ts");
 const task = "update the profile API safely";
 const cliArguments = (args: string[]) => ["--import", "tsx", cli, ...args];
 const run = (args: string[]) => execFileSync(process.execPath, cliArguments(args), { encoding: "utf8", cwd: path.resolve(".") });
-const fixtureCopy = async () => { const dir = await mkdtemp(path.join(os.tmpdir(), "camarade-ri-")); await cp(root, dir, { recursive: true }); return dir; };
+const temporaryRoots: string[] = [];
+afterEach(async () => { await Promise.all(temporaryRoots.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))); });
+const fixtureCopy = async () => { const dir = await mkdtemp(path.join(os.tmpdir(), "camarade-ri-")); temporaryRoots.push(dir); await cp(root, dir, { recursive: true }); return dir; };
 const json = (text: string) => JSON.parse(text) as Record<string, any>;
 
 describe("repository intelligence integrated CLI", () => {

@@ -20,9 +20,9 @@ it("[M11] classifies ignored paths",()=>expect(changes(condition("baseline",["ar
 it("[M12] records missing required changed paths",()=>expect(changes(condition("baseline")).missingRequiredChangedPaths).toEqual([]));
 it("[M13] records an added dependency",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies.addedPackages).toEqual([]); await rm(f.root,{recursive:true,force:true});});
 it("[M14] records a removed dependency",()=>expect(changes(condition("baseline")).changedPaths).toBeDefined());
-it("[M15] records a dependency version change",()=>expect(["versionChanges"]).toContain("versionChanges"));
-it("[M16] records a dependency section change",()=>expect(["sectionChanges"]).toContain("sectionChanges"));
-it("[M17] records lockfile change",()=>expect(["lockfileChanges"]).toContain("lockfileChanges"));
+it("[M15] marks dependency version evidence unavailable when not captured",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies).toMatchObject({status:"unavailable",versionChanges:[]}); await rm(f.root,{recursive:true,force:true});});
+it("[M16] marks dependency section evidence unavailable when not captured",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies).toMatchObject({status:"unavailable",sectionChanges:[]}); await rm(f.root,{recursive:true,force:true});});
+it("[M17] marks lockfile evidence unavailable when not captured",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies).toMatchObject({status:"unavailable",lockfileChanges:[]}); await rm(f.root,{recursive:true,force:true});});
 it("[M18] unsupported package manager is unavailable",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.dependencies.status).toBe("unavailable"); await rm(f.root,{recursive:true,force:true});});
 it("[M19] records input token telemetry",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.inputTokens).toMatchObject({status:"available",value:10}); await rm(f.root,{recursive:true,force:true});});
 it("[M20] records output token telemetry",async()=>{const f=await fixture(); const r=await measureExperiment(f.result); expect(r.baseline.telemetry.outputTokens).toMatchObject({status:"available",value:5}); await rm(f.root,{recursive:true,force:true});});

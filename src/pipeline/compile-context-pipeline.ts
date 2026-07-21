@@ -12,8 +12,14 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import {
+  ARTIFACT_VERSION_ERROR,
+  ArtifactReaderError,
+  readVersionedArtifact,
+} from "../artifacts/versioning.js";
 import { loadRunConfig } from "../config/load-run-config.js";
 import { ContextCompilationError } from "../core/errors.js";
+import { validationCommandLabel } from "../core/types.js";
 import { applyContextFilters } from "../context/apply-context-filters.js";
 import { compileTaskContext } from "../context/compile-task-context.js";
 import { canonicalJson, characterCount, isSafeRepositoryPath, sha256, toPosixPath, uniqueSorted } from "../context/context-serialization.js";
@@ -395,22 +401,26 @@ async function loadIntelligence(
   if (!inside(repositoryRoot, artifactPath)) {
     throw new ContextCompilationError("Intelligence artifact path escapes the repository.", "CONTEXT_REQUEST_INVALID", "load-intelligence");
   }
-  let raw: string;
+  let parsed: unknown;
   try {
     const metadata = await lstat(artifactPath);
     if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("not a regular file");
     const resolved = await realpath(artifactPath);
     if (!inside(repositoryRoot, resolved)) throw new Error("artifact resolves outside the repository");
-    raw = await readFile(resolved, "utf8");
+    parsed = await readVersionedArtifact(resolved, "stage-3-intelligence");
   } catch (cause) {
+    if (cause instanceof ArtifactReaderError && cause.code === ARTIFACT_VERSION_ERROR) {
+      throw new ContextCompilationError(
+        cause.message,
+        "UNSUPPORTED_ARTIFACT_VERSION",
+        "load-intelligence",
+        { artifactKind: cause.artifactKind, version: cause.version },
+        undefined,
+        cause,
+      );
+    }
     const code = (cause as NodeJS.ErrnoException).code === "ENOENT" ? "CONTEXT_INTELLIGENCE_MISSING" : "CONTEXT_INTELLIGENCE_INVALID";
     throw pipelineError(cause, code, "load-intelligence", `Intelligence artifact cannot be loaded: ${relativeArtifact}.`);
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (cause) {
-    throw pipelineError(cause, "CONTEXT_INTELLIGENCE_INVALID", "load-intelligence", `Intelligence artifact is malformed JSON: ${relativeArtifact}.`);
   }
   requireArtifactShape(parsed);
   const evaluation = evaluateIntelligenceArtifact(parsed);
@@ -589,7 +599,7 @@ export async function compileContextPipeline(request: ContextCompilationRequest)
       artifact,
       inventory: loaded.inventory,
       task: taskSpec,
-      validationCommands: configuration.validationCommands
+      validationCommands: configuration.validationCommands.map(validationCommandLabel)
     });
     candidates = retrievedCandidates;
     await writer.writeJson("candidates", retrievedCandidates);
@@ -634,7 +644,7 @@ export async function compileContextPipeline(request: ContextCompilationRequest)
       repositorySummary: summary,
       candidates: state.candidates,
       decisions: state.decisions,
-      validationCommands: configuration.validationCommands,
+      validationCommands: configuration.validationCommands.map(validationCommandLabel),
       budget,
       budgetUsed: used,
       reasoner: reasonerMetadata

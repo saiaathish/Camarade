@@ -34,7 +34,7 @@ beforeAll(async () => {
 });
 
 describe("Stage 4 context candidate retrieval", () => {
-  it("retrieves the hero architecture, source, utility, test, protection, and validation context", () => {
+  it("retrieves the hero architecture, source, utility, test, validation, and root safety protection", () => {
     const relevantPaths = candidates
       .filter((candidate) => candidate.category === "relevant-file")
       .flatMap((candidate) => candidate.sourcePaths);

@@ -22,7 +22,7 @@ interface RunListEntry {
 type ListState =
   | { kind: "loading" }
   | { kind: "ready"; runs: RunListEntry[] }
-  | { kind: "error"; invalid: boolean };
+  | { kind: "error"; reason: "unavailable" | "invalid" | "unsupported" };
 
 function RunRow({ entry }: { entry: RunListEntry }) {
   const { summary } = entry;
@@ -73,7 +73,7 @@ export function DashboardRunList() {
         return { summary, baselineSummary: conditionSummary("baseline"), camaradeSummary: conditionSummary("camarade"), simulation: run.simulation };
       }));
       setState({ kind: "ready", runs });
-    } catch (error) { setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" }); }
+    } catch (error) { setState({ kind: "error", reason: error instanceof DashboardApiError ? error.reason : "unavailable" }); }
   };
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export function DashboardRunList() {
         }),
       );
       if (!cancelled) setState({ kind: "ready", runs });
-      } catch (error) { if (!cancelled) setState({ kind: "error", invalid: error instanceof DashboardApiError && error.reason === "invalid" }); }
+      } catch (error) { if (!cancelled) setState({ kind: "error", reason: error instanceof DashboardApiError ? error.reason : "unavailable" }); }
     };
     void load();
     return () => {
@@ -120,7 +120,7 @@ export function DashboardRunList() {
       </section>
 
       {state.kind === "loading" ? <DashboardLoading label="Loading runs…" /> : null}
-      {state.kind === "error" ? <DashboardUnavailable invalid={state.invalid} onRetry={() => { setState({ kind: "loading" }); void loadRuns(); }} announce /> : null}
+      {state.kind === "error" ? <DashboardUnavailable invalid={state.reason === "invalid"} unsupported={state.reason === "unsupported"} onRetry={() => { setState({ kind: "loading" }); void loadRuns(); }} announce /> : null}
       {state.kind === "ready" && state.runs.length === 0 ? <DashboardEmptyRunList fixtureMode={fixtureMode} /> : null}
       {state.kind === "ready" && state.runs.length > 0 ? (
         <ol className="run-list" aria-label="Recorded runs, newest first">

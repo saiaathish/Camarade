@@ -11,7 +11,7 @@ export type RepositoryLanguage = "typescript" | "javascript" | "json" | "yaml" |
 export interface RepositoryFile { id: string; relativePath: string; kind: RepositoryFileKind; language: RepositoryLanguage; sizeBytes: number; sha256: string; }
 export type RepositoryFactKind = "file-exists" | "package-script" | "dependency" | "dev-dependency" | "framework" | "test-framework" | "import" | "export" | "server-action" | "route-handler" | "middleware-reference";
 export interface RepositoryFact { id: string; kind: RepositoryFactKind; relativePath: string; startLine: number; endLine: number; subject: string; value: string; excerpt: string; excerptHash: string; }
-export interface RepositoryInventorySkip { relativePath: string; reason: string; }
+export interface RepositoryInventorySkip { relativePath: string; reason: string; code?: import("../core/types.js").DegradationCode; }
 export interface RepositoryInventory { directories: string[]; files: RepositoryFile[]; facts: RepositoryFact[]; skipped: RepositoryInventorySkip[]; }
 export type ConventionKind = "server-actions-for-mutations" | "shared-middleware-for-api-security" | "test-framework" | "import-alias" | "existing-utility-reuse";
 export interface RepositoryConvention { id: string; kind: ConventionKind; statement: string; evidenceIds: string[]; affectedRelativePaths: string[]; explanation: string; }

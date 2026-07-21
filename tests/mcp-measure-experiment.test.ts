@@ -3,12 +3,13 @@ import { measureExperimentSchema, MEASURE_CONFIRMATION } from "../src/mcp/tools/
 import { handleMeasureExperiment } from "../src/mcp/tools/measure-experiment.js";
 import { parseCliArgs } from "../src/cli.js";
 import { createCamaradeMcpServer } from "../src/mcp/server.js";
+import { CAMARADE_MCP_SERVER_VERSION, MEASURE_EXPERIMENT_TOOL_NAME } from "../src/mcp/mcp-types.js";
 const good={experiment_directory:"/tmp/experiment",confirmation:{confirmed:true,statement:MEASURE_CONFIRMATION}};
 const service=async()=>({tool:"camarade.measure_experiment" as const,serverVersion:"1.2.0" as const,comparisonId:"x",status:"limited" as const,officialBenchmarkEligible:false,simulationLabel:"simulation" as const,baselineTotal:1,camaradeTotal:1,baselineMeasurableMaximum:90,camaradeMeasurableMaximum:90,delta:0,outcome:null,materialOverride:null,limitations:["x"],artifacts:{baselineScore:"scoring/baseline-score.json",camaradeScore:"scoring/camarade-score.json",comparison:"scoring/comparison.json",report:"scoring/REPORT.md",evidenceIndex:"scoring/evidence-index.json"}});
 describe("S6-R3 MCP and CLI interface",()=>{
 it("[M01] discovers exactly three MCP tools",()=>{const s=createCamaradeMcpServer();expect(s).toBeDefined();});
-it("[M02] exposes measure tool name",()=>{expect("camarade.measure_experiment").toBe("camarade.measure_experiment");});
-it("[M03] reports server version",()=>{expect("1.2.0").toBe("1.2.0");});
+it("[M02] exposes measure tool name",()=>{expect(MEASURE_EXPERIMENT_TOOL_NAME).toBe("camarade.measure_experiment");});
+it("[M03] reports server version",()=>{expect(CAMARADE_MCP_SERVER_VERSION).toBe("1.3.0");});
 it("[M04] rejects unknown fields",()=>{expect(measureExperimentSchema.safeParse({...good,x:1}).success).toBe(false);});
 it("[M05] rejects missing locator",()=>{expect(measureExperimentSchema.safeParse({confirmation:good.confirmation}).success).toBe(false);});
 it("[M06] rejects both locators",()=>{expect(measureExperimentSchema.safeParse({...good,comparison_id:"x",controller_root:"/tmp"}).success).toBe(false);});

@@ -23,6 +23,7 @@
     "build:stage8": "npm run build && npm run build:dashboard",
     "build:plugin": "node scripts/build-plugin.mjs",
     "verify:plugin": "npm run build:plugin && vitest run tests/plugin-package.test.ts",
+    "verify:plugin:determinism": "node scripts/verify-plugin-determinism.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --maxWorkers=2",
     "test:coverage": "vitest run --coverage",
@@ -37,14 +38,16 @@
     "verify:stage8:foundation": "tsx scripts/verify-stage-8-foundation.ts",
     "verify:stage3": "tsx scripts/verify-stage-3.ts",
     "certify:stage3": "tsx scripts/certify-stage-3.ts",
-    "verify:stage8": "CAMARADE_STAGE8_ALLOW_FRONTEND_DIFF=1 npm run build:stage8 && CAMARADE_STAGE8_ALLOW_FRONTEND_DIFF=1 npm run verify:stage8:foundation && tsx scripts/verify-stage-8.ts",
+    "verify:stage8": "tsx scripts/verify-stage-8-portable.ts",
     "certify:stage8": "npm run build:stage8 && tsx scripts/certify-stage-8.ts",
-    "verify:mcp": "npm run verify:mcp:stage4 && npm run verify:mcp:stage5",
+    "verify:mcp": "npm run verify:mcp:stage4 && npm run verify:mcp:stage5 && npm run verify:mcp:stage6 && npm run verify:mcp:stage7",
     "certify:stage5": "npm run build && npm run verify:mcp",
     "certify:stage6": "npm run build && tsx scripts/certify-stage-6.ts",
     "certify:stage7": "npm run build && tsx scripts/certify-stage-7.ts",
     "certify:package": "tsx scripts/certify-package.ts",
+    "certify:ci": "tsx scripts/certify-ci.ts",
     "verify:test-quality": "tsx scripts/verify-test-quality.ts",
+    "verify:public-artifacts": "tsx scripts/verify-public-artifacts.ts",
     "benchmark:dashboard": "tsx scripts/dashboard-stress.ts",
     "benchmark:soak": "tsx scripts/soak.ts",
     "benchmark:overnight": "tsx scripts/benchmark-overnight.ts",
@@ -66,5 +69,8 @@
     "typescript": "^5.7.2",
     "yaml": "^2.9.0",
     "zod": "4.4.3"
+  },
+  "overrides": {
+    "qs": "6.15.3"
   }
 }

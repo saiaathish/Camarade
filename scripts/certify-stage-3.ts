@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { verifyStage3 } from "./verify-stage-3.js";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const ledgerPath = process.env.CAMARADE_CHECKPOINT_LEDGER ?? join(root, ".artifacts", "stage-3", "checkpoint-ledger.jsonl");
 
 try {

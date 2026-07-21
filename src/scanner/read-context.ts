@@ -11,9 +11,13 @@ import {
 } from "./discover-context.js";
 
 export const DEFAULT_MAX_CONTEXT_FILE_BYTES = 1024 * 1024;
+export const DEFAULT_MAX_CONTEXT_FILES = 100_000;
+export const DEFAULT_MAX_CONTEXT_TOTAL_BYTES = 256 * 1024 * 1024;
 
 export interface ReadContextOptions {
   maxFileBytes?: number;
+  maxFiles?: number;
+  maxTotalBytes?: number;
 }
 
 export interface ContextReadResult {
@@ -45,9 +49,10 @@ function hasControllerSegment(repositoryRoot: string, targetPath: string): boole
 function skip(
   file: DiscoveredContextFile,
   reason: ContextSkipEvidence["reason"],
-  detail: string
+  detail: string,
+  code?: ContextSkipEvidence["code"]
 ): ContextSkipEvidence {
-  return { relativePath: file.relativePath, absolutePath: file.absolutePath, reason, detail };
+  return { relativePath: file.relativePath, absolutePath: file.absolutePath, reason, detail, ...(code === undefined ? {} : { code }) };
 }
 
 function validateMaxFileBytes(value: number): number {
@@ -74,9 +79,42 @@ export async function readContext(
 ): Promise<ContextReadResult> {
   const repositoryRoot = await resolveRepositoryRoot(repositoryPath);
   const maxFileBytes = validateMaxFileBytes(options.maxFileBytes ?? DEFAULT_MAX_CONTEXT_FILE_BYTES);
+  const maxFiles = validateMaxFileBytes(options.maxFiles ?? DEFAULT_MAX_CONTEXT_FILES);
+  const maxTotalBytes = validateMaxFileBytes(options.maxTotalBytes ?? DEFAULT_MAX_CONTEXT_TOTAL_BYTES);
   const files = [...normalizeFiles(discoveryOrFiles)].sort(comparePaths);
   const sources: ContextSource[] = [];
   const skipped: ContextSkipEvidence[] = [];
+
+  if (files.length > maxFiles) {
+    throw new ContextDiscoveryError(
+      `Context discovery returned ${files.length} files, exceeding the ${maxFiles}-file limit.`,
+      undefined,
+      "REPOSITORY_TOO_LARGE"
+    );
+  }
+
+  let totalBytes = 0;
+  for (const file of files) {
+    const expectedAbsolutePath = resolve(repositoryRoot, file.relativePath);
+    if (file.relativePath === "" || isAbsolute(file.relativePath) || expectedAbsolutePath !== file.absolutePath ||
+        !isWithinRepository(repositoryRoot, expectedAbsolutePath)) continue;
+    let targetPath: string;
+    try { targetPath = await realpath(expectedAbsolutePath); }
+    catch { continue; }
+    if (!isWithinRepository(repositoryRoot, targetPath) || hasControllerSegment(repositoryRoot, targetPath)) continue;
+    let fileStat;
+    try { fileStat = await stat(targetPath); }
+    catch { continue; }
+    if (!fileStat.isFile() || fileStat.size > maxFileBytes) continue;
+    totalBytes += fileStat.size;
+    if (totalBytes > maxTotalBytes) {
+      throw new ContextDiscoveryError(
+        `Context content exceeds the ${maxTotalBytes}-byte total analysis limit.`,
+        undefined,
+        "REPOSITORY_TOO_LARGE"
+      );
+    }
+  }
 
   for (const file of files) {
     const expectedAbsolutePath = resolve(repositoryRoot, file.relativePath);
@@ -114,7 +152,7 @@ export async function readContext(
       continue;
     }
     if (fileStat.size > maxFileBytes) {
-      skipped.push(skip(file, "oversized", `File size ${fileStat.size} exceeds the ${maxFileBytes}-byte limit.`));
+      skipped.push(skip(file, "oversized", `File size ${fileStat.size} exceeds the ${maxFileBytes}-byte limit.`, "REPOSITORY_TOO_LARGE"));
       continue;
     }
 
@@ -126,7 +164,7 @@ export async function readContext(
       continue;
     }
     if (buffer.length > maxFileBytes) {
-      skipped.push(skip(file, "oversized", `File size ${buffer.length} exceeds the ${maxFileBytes}-byte limit.`));
+      skipped.push(skip(file, "oversized", `File size ${buffer.length} exceeds the ${maxFileBytes}-byte limit.`, "REPOSITORY_TOO_LARGE"));
       continue;
     }
     if (isBinary(buffer)) {
@@ -138,7 +176,7 @@ export async function readContext(
     try {
       content = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
     } catch {
-      skipped.push(skip(file, "invalid-utf8", "File is not valid UTF-8."));
+      skipped.push(skip(file, "invalid-utf8", "File is not valid UTF-8.", "UNSUPPORTED_ENCODING"));
       continue;
     }
 

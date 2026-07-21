@@ -64,7 +64,7 @@ afterEach(async () => {
 });
 
 describe("context safety boundaries", () => {
-  it("archives and removes ignored active instructions while preserving only generated root AGENTS.md", async () => {
+  it("archives all active instructions and preserves unresolved nested sources in the optimized worktree", async () => {
     const root = await temporaryRoot();
     const worktrees = await createGitWorktrees(root);
     const ignoredPaths = [
@@ -103,10 +103,24 @@ describe("context safety boundaries", () => {
       .toBe("committed agents\n");
     expect(await readFile(join(worktrees.camaradeWorktreePath, "AGENTS.md"), "utf8"))
       .toBe(generatedAgentsMarkdown);
+    expect(prepared.neutralizedInstructionPaths).toEqual([
+      ".cursor/rules/ignored.md",
+      ".github/copilot-instructions.md",
+      "AGENTS.md"
+    ]);
+    expect(prepared.preservedInstructionPaths).toEqual([
+      "ignored-instructions/CLAUDE.md",
+      "ignored-instructions/nested/AGENTS.md"
+    ]);
     for (const relativePath of ignoredPaths) {
       expect(await readFile(join(worktrees.baselineWorktreePath, ...relativePath.split("/")), "utf8"))
         .toBe(`${relativePath}\n`);
-      await expect(access(join(worktrees.camaradeWorktreePath, ...relativePath.split("/")))).rejects.toThrow();
+      if (relativePath.endsWith("AGENTS.md") || relativePath.endsWith("CLAUDE.md")) {
+        expect(await readFile(join(worktrees.camaradeWorktreePath, ...relativePath.split("/")), "utf8"))
+          .toBe(`${relativePath}\n`);
+      } else {
+        await expect(access(join(worktrees.camaradeWorktreePath, ...relativePath.split("/")))).rejects.toThrow();
+      }
     }
   });
 

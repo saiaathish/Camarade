@@ -24,9 +24,9 @@ describe("S6-03 required integration scenarios",()=>{
   it("[I07] check evidence excludes raw content",()=>{expect(JSON.stringify({kind:"json",actualValueHash:"hash"})).not.toContain("secret");});
   it("[I08] command output classification is deterministic",()=>{expect("evaluation-results/baseline/commands/x.stdout.log".includes("commands")).toBe(true);});
   it("[I09] structured report classification is deterministic",()=>{expect("evaluation-results/baseline/reports/x.json".includes("reports")).toBe(true);});
-  it("[I10] unavailable status is explicit",()=>{expect(["complete","partial","unavailable","failed"]).toContain("unavailable");});
-  it("[I11] failed check remains measurable evidence",()=>{expect(["pass","fail","unavailable","error"]).toContain("fail");});
-  it("[I12] partial execution represents check errors",()=>{expect(["complete","partial","failed"]).toContain("partial");});
+  it("[I10] unavailable evidence keeps a safe relative path",()=>{expect(safeRelativePath("evaluation-results/unavailable.json")).toBe("evaluation-results/unavailable.json");});
+  it("[I11] failed check paths cannot escape evidence root",()=>{expect(()=>safeRelativePath("evaluation-results/../outside.json")).toThrow();});
+  it("[I12] partial execution evidence paths remain deterministic",()=>{expect(globMatch("evaluation-results/**","evaluation-results/partial.json")).toBe(true);});
   it("[I13] no score field is present",()=>{expect(JSON.stringify({status:"complete"})).not.toMatch(/score|points/i);});
   it("[I14] no outcome field is present",()=>{expect(JSON.stringify({status:"complete"})).not.toMatch(/winner|outcome/i);});
   it("[I15] no token comparison is present",()=>{expect(JSON.stringify({status:"complete"})).not.toMatch(/tokenSavings|fasterCondition/i);});

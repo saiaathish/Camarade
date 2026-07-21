@@ -1,0 +1,55 @@
+name: Release certification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 20
+          - os: ubuntu-latest
+            node: 22
+          - os: macos-latest
+            node: 22
+          - os: windows-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - name: Install controller dependencies
+        run: npm ci
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
+      - name: Run clean release certification
+        run: npm run certify:ci
+      - name: Upload private certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: certification-${{ matrix.os }}-node-${{ matrix.node }}
+          path: |
+            .artifacts/private/ci/**
+            .artifacts/package-certification/**
+            coverage/**
+          if-no-files-found: warn
+          retention-days: 14

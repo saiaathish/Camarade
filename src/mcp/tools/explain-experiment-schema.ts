@@ -1,7 +1,8 @@
 import { z } from "zod/v3";
+import { isSafePortableAbsolutePath } from "../../core/path-portability.js";
 export const EXPLAIN_CONFIRMATION = "I authorize Camarade to explain this completed experiment." as const;
 const safeId = z.string().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "comparison_id is unsafe");
-const safeAbsolute = z.string().min(1).refine(v => v.startsWith("/") && !v.includes("\0") && !v.split("/").includes(".."), "path must be absolute and safe");
+const safeAbsolute = z.string().min(1).refine(isSafePortableAbsolutePath, "path must be absolute and safe");
 export const explainExperimentToolSchema = z.object({
   comparison_id: safeId.optional(), controller_root: safeAbsolute.optional(), experiment_directory: safeAbsolute.optional(),
   confirmation: z.object({ confirmed: z.literal(true), statement: z.literal(EXPLAIN_CONFIRMATION) }).strict()

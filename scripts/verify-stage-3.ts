@@ -1,8 +1,9 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { assertCheckpoint, runCheckpoint, type Checkpoint } from "./benchmark/checkpoint-ledger.js";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const ledgerPath = process.env.CAMARADE_CHECKPOINT_LEDGER ?? join(root, ".artifacts", "stage-3", "checkpoint-ledger.jsonl");
 const runId = process.env.CAMARADE_CHECKPOINT_RUN_ID ?? `stage-3-verify-${new Date().toISOString().replaceAll(/[-:.TZ]/g, "")}`;
 

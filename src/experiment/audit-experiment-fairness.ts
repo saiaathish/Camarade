@@ -1,5 +1,83 @@
 import { canonicalJson, sha256 } from "../context/context-serialization.js";
-import type { FairnessAudit, FairnessAuditCheck, PreparedFairExperiment, PreparedConditionManifest, ExecutedPreparedExperiment, ConditionValidationResult, ExperimentStartingState } from "./experiment-types.js";
-export interface AuditExperimentFairnessInput { prepared: PreparedFairExperiment; executed: ExecutedPreparedExperiment; baselineValidation: ConditionValidationResult; camaradeValidation: ConditionValidationResult; sourcePostRunState: Omit<ExperimentStartingState, "clean"> & { clean: boolean }; }
-const check = (id:string, ok:boolean, message:string, b?:unknown, c?:unknown): FairnessAuditCheck => ({ checkId:id, status:ok?"pass":"fail", ...(b===undefined?{}:{baselineValueHash:sha256(canonicalJson(b))}), ...(c===undefined?{}:{camaradeValueHash:sha256(canonicalJson(c))}), message });
-export function auditExperimentFairness(input: AuditExperimentFairnessInput): FairnessAudit { const p=input.prepared, e=input.executed, b=input.baselineValidation, c=input.camaradeValidation; const checks = [check("preparation-audit-passed",p.fairnessAudit.status==="pass","Preparation audit"),check("same-starting-commit",((p.baseline as PreparedConditionManifest & {startingCommit?:string}).startingCommit !== undefined || (p.camarade as PreparedConditionManifest & {startingCommit?:string}).startingCommit !== undefined) ? (p.baseline as PreparedConditionManifest & {startingCommit?:string}).startingCommit === (p.camarade as PreparedConditionManifest & {startingCommit?:string}).startingCommit : p.baseline.worktree.startingCommit===p.camarade.worktree.startingCommit,"Starting commit"),check("same-starting-tree",p.baseline.worktree.startingTree===p.camarade.worktree.startingTree,"Starting tree"),check("same-tracked-tree-hash",p.baseline.worktree.trackedTreeHash===p.camarade.worktree.trackedTreeHash||p.baseline.worktree.trackedTreeHash===undefined,"Tracked tree"),check("same-task-hash",p.baseline.taskHash===p.camarade.taskHash,"Task hash"),check("same-context-budget",p.baseline.contextBudgetHash===p.camarade.contextBudgetHash||p.baseline.contextBudgetHash===undefined,"Context budget"),check("expected-context-treatment-difference",(p.baseline.context?.contextHash??"b")!==(p.camarade.context?.contextHash??"c"),"Context differs"),check("execution-audit-passed",(e.fairnessAudit?.status==="pass"&&e.fairnessAudit.checks.length>0)||e.fairnessAudit===undefined,"Execution audit"),check("same-codex-executable",e.codex?.resolvedExecutable!==undefined||e.codex===undefined,"Codex executable"),check("same-codex-version",e.codex?.executableVersion!==""||e.codex===undefined,"Codex version"),check("same-codex-model",e.codex?.model!==""||e.codex===undefined,"Codex model"),check("same-codex-arguments",e.codex?.configuredArguments!==undefined || e.codex?.configuredArguments===undefined,"Codex arguments"),check("same-codex-timeout",e.codex===undefined||e.codex.timeoutSeconds===p.specification?.codex?.timeoutSeconds,"Codex timeout"),check("same-codex-sandbox",e.codex===undefined || e.codex.sandbox===undefined || e.codex.sandbox==="workspace-write","Sandbox"),check("same-codex-approval-policy",e.codex===undefined || e.codex.approvalPolicy===undefined || e.codex.approvalPolicy==="never","Approval"),check("same-prompt-template",e.baseline?.prompt?.templateHash===e.camarade?.prompt?.templateHash||e.baseline?.prompt===undefined,"Prompt template"),check("configured-execution-order-recorded",e.executionOrder===undefined||JSON.stringify(e.executionOrder)===JSON.stringify(p.specification?.orderedConditionIds),"Execution order"),check("same-validation-command-list",b.commandListHash===c.commandListHash,"Validation commands",b.commandListHash,c.commandListHash),check("same-validation-command-order",(b.commands??[]).map(x=>x.command).join("\0")===(c.commands??[]).map(x=>x.command).join("\0"),"Validation order"),check("same-validation-command-count",(b.commands??[]).length===(c.commands??[]).length,"Validation count"),check("same-validation-timeout",b.timeoutSeconds===c.timeoutSeconds,"Validation timeout",b.timeoutSeconds,c.timeoutSeconds),check("same-validation-environment-values",b.environment.normalizedValueHash===c.environment.normalizedValueHash,"Validation environment",b.environment.normalizedValueHash,c.environment.normalizedValueHash),check("same-validation-runner",true,"Validation runner"),check("separate-validation-log-paths",(b.commands??[]).every((x,i)=>x.stdoutPath!==c.commands[i]?.stdoutPath),"Validation logs"),check("baseline-all-commands-attempted",(b.commands??[]).length===p.specification?.validationCommands.length||p.specification?.validationCommands.length===undefined,"Baseline attempts"),check("camarade-all-commands-attempted",(c.commands??[]).length===p.specification?.validationCommands.length||p.specification?.validationCommands.length===undefined,"Camarade attempts"),check("separate-worktrees",p.baseline.worktree.path!==p.camarade.worktree.path,"Separate worktrees"),check("separate-context-paths",p.baseline.context?.contextPath!==p.camarade.context?.contextPath||p.baseline.context===undefined,"Context paths"),check("separate-prompt-paths",e.baseline?.prompt?.promptPath!==e.camarade?.prompt?.promptPath||e.baseline?.prompt===undefined,"Prompt paths"),check("source-repository-path-unchanged",p.startingState===undefined || input.sourcePostRunState.repositoryPath===p.startingState.repositoryPath,"Source path"),check("source-commit-unchanged",p.startingState===undefined || input.sourcePostRunState.startingCommit===p.startingState.startingCommit,"Source commit"),check("source-tree-unchanged",p.startingState===undefined || input.sourcePostRunState.startingTree===p.startingState.startingTree,"Source tree"),check("source-tracked-tree-hash-unchanged",p.startingState===undefined || input.sourcePostRunState.repositoryFingerprint===p.startingState.repositoryFingerprint,"Source fingerprint"),check("source-worktree-clean",input.sourcePostRunState.clean===true,"Source clean")]; return { status:checks.every(x=>x.status==="pass")?"pass":"fail", checks }; }
+import type {
+  ConditionValidationResult,
+  ExecutedPreparedExperiment,
+  ExperimentStartingState,
+  FairnessAudit,
+  FairnessAuditCheck,
+  PreparedFairExperiment,
+} from "./experiment-types.js";
+
+export interface AuditExperimentFairnessInput {
+  prepared: PreparedFairExperiment;
+  executed: ExecutedPreparedExperiment;
+  baselineValidation: ConditionValidationResult;
+  camaradeValidation: ConditionValidationResult;
+  sourcePostRunState: Omit<ExperimentStartingState, "clean"> & { clean: boolean };
+}
+
+function check(
+  checkId: string,
+  ok: boolean,
+  message: string,
+  baseline?: unknown,
+  camarade?: unknown,
+): FairnessAuditCheck {
+  return {
+    checkId,
+    status: ok ? "pass" : "fail",
+    ...(baseline === undefined ? {} : { baselineValueHash: sha256(canonicalJson(baseline)) }),
+    ...(camarade === undefined ? {} : { camaradeValueHash: sha256(canonicalJson(camarade)) }),
+    message,
+  };
+}
+
+export function auditExperimentFairness(input: AuditExperimentFairnessInput): FairnessAudit {
+  const { prepared, executed, baselineValidation, camaradeValidation, sourcePostRunState } = input;
+  const baseline = prepared.baseline;
+  const camarade = prepared.camarade;
+  const baselineInvocation = executed.baseline.invocation;
+  const camaradeInvocation = executed.camarade.invocation;
+  const baselineCommands = baselineValidation.commands ?? [];
+  const camaradeCommands = camaradeValidation.commands ?? [];
+  const expectedCommands = prepared.specification.validationCommands.length;
+
+  const checks = [
+    check("preparation-audit-passed", prepared.fairnessAudit.status === "pass", "Preparation audit"),
+    check("execution-audit-passed", executed.fairnessAudit.status === "pass" && executed.fairnessAudit.checks.length > 0, "Execution audit"),
+    check("same-starting-commit", baseline.worktree.startingCommit === camarade.worktree.startingCommit, "Starting commit", baseline.worktree.startingCommit, camarade.worktree.startingCommit),
+    check("same-starting-tree", baseline.worktree.startingTree === camarade.worktree.startingTree, "Starting tree", baseline.worktree.startingTree, camarade.worktree.startingTree),
+    check("same-tracked-tree-hash", baseline.worktree.trackedTreeHash === camarade.worktree.trackedTreeHash, "Tracked tree", baseline.worktree.trackedTreeHash, camarade.worktree.trackedTreeHash),
+    check("same-task-hash", baseline.taskHash === camarade.taskHash, "Task hash", baseline.taskHash, camarade.taskHash),
+    check("same-context-budget", baseline.contextBudgetHash === camarade.contextBudgetHash, "Context budget", baseline.contextBudgetHash, camarade.contextBudgetHash),
+    check("expected-context-treatment-difference", baseline.context.contextHash !== camarade.context.contextHash, "Context differs", baseline.context.contextHash, camarade.context.contextHash),
+    check("same-agent-executable", baselineInvocation.executable === camaradeInvocation.executable, "Agent executable", baselineInvocation.executable, camaradeInvocation.executable),
+    check("same-agent-version", baselineInvocation.executableVersion === camaradeInvocation.executableVersion, "Agent version", baselineInvocation.executableVersion, camaradeInvocation.executableVersion),
+    check("same-agent-arguments", baselineInvocation.normalizedArgumentsHash === camaradeInvocation.normalizedArgumentsHash && canonicalJson(baselineInvocation.arguments) === canonicalJson(camaradeInvocation.arguments), "Agent arguments", baselineInvocation.arguments, camaradeInvocation.arguments),
+    check("same-agent-timeout", baselineInvocation.timeoutSeconds === camaradeInvocation.timeoutSeconds, "Agent timeout", baselineInvocation.timeoutSeconds, camaradeInvocation.timeoutSeconds),
+    check("same-agent-environment-policy", baselineInvocation.environmentPolicyHash === camaradeInvocation.environmentPolicyHash, "Agent environment policy", baselineInvocation.environmentPolicyHash, camaradeInvocation.environmentPolicyHash),
+    check("configured-model-recorded", executed.codex.model.trim() !== "", "Agent model"),
+    check("configured-sandbox-recorded", executed.codex.sandbox === "workspace-write", "Sandbox"),
+    check("configured-approval-policy-recorded", executed.codex.approvalPolicy === "never", "Approval"),
+    check("same-prompt-template", executed.baseline.prompt.templateHash === executed.camarade.prompt.templateHash, "Prompt template", executed.baseline.prompt.templateHash, executed.camarade.prompt.templateHash),
+    check("configured-execution-order-recorded", canonicalJson(executed.executionOrder) === canonicalJson(prepared.specification.orderedConditionIds), "Execution order", executed.executionOrder, prepared.specification.orderedConditionIds),
+    check("same-validation-command-list", baselineValidation.commandListHash === camaradeValidation.commandListHash, "Validation commands", baselineValidation.commandListHash, camaradeValidation.commandListHash),
+    check("same-validation-command-order", canonicalJson(baselineCommands.map((entry) => entry.configuration ?? entry.command)) === canonicalJson(camaradeCommands.map((entry) => entry.configuration ?? entry.command)), "Validation order"),
+    check("same-validation-command-count", baselineCommands.length === camaradeCommands.length, "Validation count", baselineCommands.length, camaradeCommands.length),
+    check("same-validation-timeout", baselineValidation.timeoutSeconds === camaradeValidation.timeoutSeconds, "Validation timeout", baselineValidation.timeoutSeconds, camaradeValidation.timeoutSeconds),
+    check("same-validation-environment-values", baselineValidation.environment.normalizedValueHash === camaradeValidation.environment.normalizedValueHash, "Validation environment", baselineValidation.environment.normalizedValueHash, camaradeValidation.environment.normalizedValueHash),
+    check("separate-validation-log-paths", baselineCommands.every((entry, index) => entry.stdoutPath !== camaradeCommands[index]?.stdoutPath && entry.stderrPath !== camaradeCommands[index]?.stderrPath), "Validation logs"),
+    check("baseline-all-commands-attempted", baselineCommands.length === expectedCommands, "Baseline attempts", baselineCommands.length, expectedCommands),
+    check("camarade-all-commands-attempted", camaradeCommands.length === expectedCommands, "Camarade attempts", camaradeCommands.length, expectedCommands),
+    check("separate-worktrees", baseline.worktree.path !== camarade.worktree.path, "Separate worktrees", baseline.worktree.path, camarade.worktree.path),
+    check("separate-context-paths", baseline.context.contextPath !== camarade.context.contextPath, "Context paths", baseline.context.contextPath, camarade.context.contextPath),
+    check("separate-prompt-paths", executed.baseline.prompt.promptPath !== executed.camarade.prompt.promptPath, "Prompt paths", executed.baseline.prompt.promptPath, executed.camarade.prompt.promptPath),
+    check("source-repository-path-unchanged", sourcePostRunState.repositoryPath === prepared.startingState.repositoryPath, "Source path", sourcePostRunState.repositoryPath, prepared.startingState.repositoryPath),
+    check("source-commit-unchanged", sourcePostRunState.startingCommit === prepared.startingState.startingCommit, "Source commit", sourcePostRunState.startingCommit, prepared.startingState.startingCommit),
+    check("source-tree-unchanged", sourcePostRunState.startingTree === prepared.startingState.startingTree, "Source tree", sourcePostRunState.startingTree, prepared.startingState.startingTree),
+    check("source-tracked-tree-hash-unchanged", sourcePostRunState.repositoryFingerprint === prepared.startingState.repositoryFingerprint, "Source fingerprint", sourcePostRunState.repositoryFingerprint, prepared.startingState.repositoryFingerprint),
+    check("source-worktree-clean", sourcePostRunState.clean, "Source clean"),
+  ];
+
+  return { status: checks.every((entry) => entry.status === "pass") ? "pass" : "fail", checks };
+}

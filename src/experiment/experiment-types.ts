@@ -1,5 +1,5 @@
 import type { ContextBudgetConfig } from "../context/context-types.js";
-import type { RunCondition } from "../core/types.js";
+import type { DegradationEvidence, RunCondition, ValidationCommand } from "../core/types.js";
 import type { EvaluationSealReference } from "../evaluation/evaluation-seal-types.js";
 import type {
   EvaluationExecutionReference,
@@ -54,7 +54,7 @@ export interface FairExperimentSpecification {
   orderedConditionIds: ExperimentConditionId[];
   conditions: ExperimentConditionSpecification[];
   codex: CodexExperimentConfig;
-  validationCommands: string[];
+  validationCommands: ValidationCommand[];
   contextBudget: ContextBudgetConfig;
   hashes: {
     codexConfiguration: string;
@@ -122,6 +122,7 @@ export interface ConditionExecutionResult {
   actualTokenUsageAvailable: boolean;
   inputTokens?: number;
   outputTokens?: number;
+  degradations?: DegradationEvidence[];
   executable?: string;
   executableVersion?: string;
   model?: string;
@@ -143,6 +144,7 @@ export interface ValidationEnvironmentEvidence {
 }
 export interface ExperimentValidationCommandResult {
   command: string;
+  configuration?: ValidationCommand;
   startedAt: string;
   completedAt: string;
   durationMs: number;
@@ -426,6 +428,7 @@ export interface CodexTranscriptSummary {
   actualTokenUsageAvailable: boolean;
   inputTokens?: number;
   outputTokens?: number;
+  degradations?: DegradationEvidence[];
 }
 export interface ExecutedCondition {
   conditionId: ExperimentConditionId;

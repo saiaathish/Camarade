@@ -1,4 +1,8 @@
-import { readFile } from "node:fs/promises";
+import {
+  ARTIFACT_VERSION_ERROR,
+  ArtifactReaderError,
+  readVersionedArtifact,
+} from "../artifacts/versioning.js";
 import { validateEvidenceGraphStructure } from "./build-evidence-graph.js";
 import { INTELLIGENCE_ARTIFACT_SCHEMA_VERSION, type IntelligenceArtifact } from "./build-intelligence-artifact.js";
 
@@ -40,7 +44,7 @@ function evaluate(artifact: unknown): IntelligenceArtifactEvaluation {
   const danglingReferenceCount = Array.isArray(graphRecord.danglingReferences) ? graphRecord.danglingReferences.length : 0;
   const unexplainedOutlierCount = ids(Array.isArray(source.unexplainedOutlierPaths) ? source.unexplainedOutlierPaths : []).length;
   const schemaError = source.schemaVersion !== INTELLIGENCE_ARTIFACT_SCHEMA_VERSION;
-  const errors = schemaError ? ["schemaVersion: unsupported artifact schema version"] : [];
+  const errors = schemaError ? ["UNSUPPORTED_ARTIFACT_VERSION: schemaVersion is unsupported"] : [];
   errors.push(...graphValidation.errors.map(error => `graph.${error}`));
   const issues: Array<{ id: string; severity: "warning" | "critical"; message: string }> = [];
   for (const id of openErrorFindingIds) issues.push({ id, severity: "critical", message: `Open error finding: ${id}` });
@@ -59,4 +63,4 @@ function evaluate(artifact: unknown): IntelligenceArtifactEvaluation {
 }
 
 export function evaluateIntelligenceArtifact(artifact: unknown): IntelligenceArtifactEvaluation { return evaluate(artifact); }
-export async function evaluateIntelligenceArtifactFile(filePath: string): Promise<IntelligenceArtifactEvaluation> { try { return evaluate(JSON.parse(await readFile(filePath, "utf8"))); } catch (error) { const message = error instanceof Error ? error.message : String(error); return { status: "fail", exitCode: 1, openErrorFindingIds: [], openWarningFindingIds: [], criticalRecommendationIds: [], highRecommendationIds: [], danglingReferenceCount: 0, unexplainedOutlierCount: 0, explanation: `Artifact could not be opened: ${message}`, code: 1, valid: false, schemaVersion: "", findingCount: 0, openFindingCount: 0, recommendationCount: 0, highConfidenceFindingCount: 0, errors: [`artifact: ${message}`], issues: [{ id: "artifact-open", severity: "critical", message }] }; } }
+export async function evaluateIntelligenceArtifactFile(filePath: string): Promise<IntelligenceArtifactEvaluation> { try { return evaluate(await readVersionedArtifact(filePath, "stage-3-intelligence")); } catch (error) { const message = error instanceof Error ? error.message : String(error); const code = error instanceof ArtifactReaderError && error.code === ARTIFACT_VERSION_ERROR ? ARTIFACT_VERSION_ERROR : undefined; return { status: "fail", exitCode: 1, openErrorFindingIds: [], openWarningFindingIds: [], criticalRecommendationIds: [], highRecommendationIds: [], danglingReferenceCount: 0, unexplainedOutlierCount: 0, explanation: `Artifact could not be opened: ${message}`, code: 1, valid: false, schemaVersion: "", findingCount: 0, openFindingCount: 0, recommendationCount: 0, highConfidenceFindingCount: 0, errors: code === undefined ? [`artifact: ${message}`] : [code], issues: [{ id: "artifact-open", severity: "critical", message }] }; } }

@@ -115,7 +115,7 @@ const candidateEvidence = (candidate: ContextCandidate): ReadonlySet<string> => 
 
 function validateShape(value: unknown): TaskContextContract {
   const root = requireRecord(value, "contract");
-  if (root.schemaVersion !== CONTEXT_SCHEMA_VERSION) reject("contract.schemaVersion is unsupported.", "CONTEXT_PROVENANCE_INVALID");
+  if (root.schemaVersion !== CONTEXT_SCHEMA_VERSION) reject("contract.schemaVersion is unsupported.", "UNSUPPORTED_ARTIFACT_VERSION");
   if (root.compilerVersion !== CONTEXT_COMPILER_VERSION) reject("contract.compilerVersion is unsupported.", "CONTEXT_PROVENANCE_INVALID");
   requireString(root.compilationId, "contract.compilationId");
   const goal = requireString(root.goal, "contract.goal");
