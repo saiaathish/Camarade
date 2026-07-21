@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { collectDiff } from "../src/evaluator/collect-diff.js";
 
 const roots: string[] = [];
+const HANGING_GIT_TEST_TIMEOUT_MS = 1_000;
 
 async function temporaryDirectory(): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "camarade-evaluator-bounds-"));
@@ -52,7 +53,12 @@ ${behavior}
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  await Promise.all(roots.splice(0).map((path) => rm(path, {
+    recursive: true,
+    force: true,
+    maxRetries: process.platform === "win32" ? 10 : 0,
+    retryDelay: process.platform === "win32" ? 100 : 0,
+  })));
 });
 
 describe("collectDiff Git subprocess bounds", () => {
@@ -61,8 +67,8 @@ describe("collectDiff Git subprocess bounds", () => {
       `process.on("SIGTERM", () => process.exit(0));
 setInterval(() => {}, 1_000);`,
       async (repositoryPath) => {
-        await expect(collectDiff(repositoryPath, { gitTimeoutMs: 40 })).rejects.toThrow(
-          'Git evidence command timed out after 40 ms: git "status" "--short"'
+        await expect(collectDiff(repositoryPath, { gitTimeoutMs: HANGING_GIT_TEST_TIMEOUT_MS })).rejects.toThrow(
+          `Git evidence command timed out after ${HANGING_GIT_TEST_TIMEOUT_MS} ms: git "status" "--short"`
         );
       }
     );
