@@ -109,6 +109,13 @@ Starting SHA: <40-character Git SHA>
 
 The evaluation prints the simulation label, comparison ID, evidence path, and summary path. The generated fixture contains conflicting and stale instructions, an existing rate-limit utility and middleware, protected auth and billing files, and an `npm test` validation command. See [Stage 2 vertical slice](docs/stage-2/vertical-slice.md) for exact CLI flags, condition behavior, artifact paths, evidence semantics, limitations, and failure handling.
 
+## How we used Codex and GPT 5.6
+I used GPT-5.6 as the architecture and orchestration layer. It helped define the product stages, contracts, safety boundaries, evaluation criteria, and release plan.
+
+Codex handled repository inspection, implementation, testing, debugging, certification, and cross-platform release validation.
+
+I made the final product, design, scope, safety, and release decisions.
+
 ## Documentation
 
 - [Task context compiler guide](docs/context-compiler.md)
